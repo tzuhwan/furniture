@@ -1326,11 +1326,21 @@ class FurnitureEnv(metaclass=EnvMeta):
 
             elif self._agent_type == 'Baxter':
                 import env.models
-                from env.controllers import BaxterIKController
-                self._controller = BaxterIKController(
+                # from env.controllers import BaxterIKController
+                # self._controller = BaxterIKController(
+                #     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
+                #     robot_jpos_getter=self._robot_jpos_getter,
+                # )
+                from env.controllers import Baxter6DPoseController
+                self._controller = Baxter6DPoseController(
                     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
                     robot_jpos_getter=self._robot_jpos_getter,
                 )
+                goal_pos = np.array([0.82516098, 0.3, 0.19841084])
+                goal_quat = np.array([ 0.68656258, -0.72074515, -0.08759494, 0.03854062])
+                # goal_quat = T.euler_to_quat(goal_rot)
+                control_arm = "left"
+                self._controller.set_goal(control_arm, goal_pos, goal_quat)
 
     def _load_model_robot(self):
         """

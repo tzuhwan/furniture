@@ -8,6 +8,7 @@ Run `pip install pybullet==1.9.5`.
 
 import os
 import numpy as np
+from pyquaternion import Quaternion
 
 try:
     import pybullet as p
@@ -17,7 +18,7 @@ except ImportError:
     )
 
 import env.transform_utils as T
-from env.controllers import Controller
+from env.controllers import BaxterIKController
 
 """
 6D pose controller for the Baxter robot, using Pybullet and the urdf description
@@ -33,8 +34,106 @@ class Baxter6DPoseController(BaxterIKController):
 
 	Inherited from Controller base class.
 	"""
-	def __init__(self, bullet_data_path, robot_jpos_getter):
+	def __init__(self, bullet_data_path, robot_jpos_getter, verbose=False):
+		print("Baxter6DPoseController: Initializing 6DPose Controller")
+
+		# initialize super class
 		super().__init__(bullet_data_path, robot_jpos_getter)
+
+		# set verbose flag
+		self.verbose = verbose
+
+		# max potential
+		self.max_potential = 100
+
+		# controller gain
+		self.kp = 1
+
+		# set move and rotate speed, for scaling motions (same as parameters in furniture.py)
+		self.move_speed = 0.025
+		self.rotate_speec = 11.25
+
+		# initialize control arm
+		self.control_arm = ""
+
+		# initialize current pose
+		self.set_current_pose()
+
+	"""
+	Sets the goal of the controller in world frame.
+	"""
+	def set_goal(self, control_arm, goal_pos, goal_quat):
+		# check for valid arm
+		if not ((control_arm == "left") or ("control_arm" == right)):
+			print("Baxter6DPoseController: Arm %s not recognized" % arm)
+			raise NameError
+			return
+
+        # we now know arm is either "left" or "right"
+		self.control_arm = control_arm
+		self.goal_pos = goal_pos
+		self.goal_quat = goal_quat
+		print("Baxter6DPoseController: New goal set for %s arm" % self.control_arm)
+		return
+
+	"""
+	Sets the current pose of the robot in the world frame.
+
+	@param curr_left_pos, the current position of the left arm in the base frame of the robot
+	@param curr_left_quat, the current rotation of the left arm in the base frame of the robot
+	@param curr_right_pos, the current position of the right arm in the base frame of the robot
+	@param curr_right_quat, the current rotation of the right arm in the base frame of the robot
+	@return none
+	@post current pose of robot in world frame is updated internally
+	"""
+	def set_current_pose(self, curr_right_pos=None, curr_right_quat=None, curr_left_pos=None, curr_left_quat=None):
+		# if none, then get pose and orientation of end-effectors in base frame from ik
+		if curr_right_pos is None:
+			curr_right_pos, curr_right_quat, curr_left_pos, curr_left_quat = self.ik_robot_eef_joint_cartesian_pose()
+			if self.verbose:
+				print("Baxter6DPoseController: left pos from ik in base frame: ", curr_left_pos)
+				print("Baxter6DPoseController: left rot from ik in base frame: ", curr_left_quat)
+				print("Baxter6DPoseController: right pos from ik in base frame: ", curr_right_pos)
+				print("Baxter6DPoseController: right rot from ik in base frame: ", curr_right_quat)
+		else:
+			if self.verbose:	
+				print("Baxter6DPoseController: given left pos in base frame: ", curr_left_pos)
+				print("Baxter6DPoseController: given left rot in base frame: ", curr_left_quat)
+				print("Baxter6DPoseController: given right pos in base frame: ", curr_right_pos)
+				print("Baxter6DPoseController: given right rot in base frame: ", curr_right_quat)
+
+		# compute left and right poses in world frame
+		curr_left_pos_in_world, curr_left_quat_in_world = self.bullet_base_pose_to_world_pose(
+			(curr_left_pos, curr_left_quat)
+		)
+		curr_right_pos_in_world, curr_right_quat_in_world = self.bullet_base_pose_to_world_pose(
+			(curr_right_pos, curr_right_quat)
+		)
+
+		if self.verbose:
+			print("Baxter6DPoseController: left pos in world frame: ", curr_left_pos_in_world)
+			print("Baxter6DPoseController: left rot in world frame: ", curr_left_quat_in_world)
+			print("Baxter6DPoseController: right pos in world frame: ", curr_right_pos_in_world)
+			print("Baxter6DPoseController: right rot in world frame: ", curr_right_quat_in_world)
+
+		# set left and right poses
+		self.curr_left_pos = curr_left_pos_in_world
+		self.curr_left_quat = curr_left_quat_in_world
+		self.curr_right_pos = curr_right_pos_in_world
+		self.curr_right_quat = curr_right_quat_in_world
+
+		# set pose of control_arm
+		if self.control_arm == "left":
+			self.curr_pos = self.curr_left_pos
+			self.curr_quat = self.curr_left_quat
+		else: # self.control_arm == "right"
+			self.curr_pos = self.curr_right_pos
+			self.curr_quat = self.curr_right_pos
+
+		return
+
+	def get_control_arm(self):
+		return self.control_arm
 
 	"""
 	Returns joint velocities to control the robot after the target end effector
@@ -45,12 +144,40 @@ class Baxter6DPoseController(BaxterIKController):
     Inherited from Controller base class.
 	"""
 	def get_control(self, right=None, left=None):
-		# TODO implement
+		# sync joint positions for IK
+		self.sync_ik_robot(self.robot_jpos_getter())
 
-		# Jlin, Jang = p.calculateJacobian(...)
-		# calls super().joint_positions_for_eef_command(right, left)
-		# 	which computes inverse kinematics and sets robot joint configuration
-		raise NotImplementedError
+		# set current pose and compute potential
+		self.set_current_pose()
+		pot = self.potential()
+
+		# initialize velocities for proportional controller
+		velocities = np.zeros(14)
+
+		# if potential is low enough, no update needed
+		if pot < 0.0005:
+			print("Baxter6DPoseController: Goal met! No update needed.")
+			return velocities
+
+		# compute dq and update state
+		# this is done in iterations, as in BaxterIKController
+		for _ in range(5):
+			# get dq
+			dq = self.get_dq()
+
+			# sync robot to match joint angles
+			self.sync_ik_robot(dq, sync_last=True)
+
+		# compute error between current and commanded joint positions
+		deltas = self._get_current_error(self.robot_jpos_getter(), dq)
+
+		# compute velocities based on error
+		for i, delta in enumerate(deltas):
+			velocities[i] = -2 * delta # TODO what does the 2 do? scaling factor?
+		
+		# clip velocities
+		velocities = self.clip_joint_velocities(velocities)
+		return velocities
 
 	"""
     Syncs the internal Pybullet robot state to the joint positions of the
@@ -59,25 +186,88 @@ class Baxter6DPoseController(BaxterIKController):
     Inherited from Controller base class.
     """
 	def sync_state(self):
-		# TODO implement
-		raise NotImplementedError
+		super().sync_state()
 
-	def _get_dx(self, current, goal):
-		# TODO implement
-		raise NotImplementedError
+	"""
+	Computes the potential of the controller based on the current and goal poses.
+	Based on attractive potential field.
+	"""
+	def potential(self):
+		# compute difference between current and goal pose
+		diff_pos = self.curr_pos - self.goal_pos
+		diff_quat = T.quat_multiply(T.quat_inverse(self.curr_quat), self.goal_quat)
+		# diff_quat = self.curr_quat - self.goal_quat
+		diff = np.hstack([diff_pos, diff_quat])
 
+		# compute distance to goal
+		dist_pos = np.linalg.norm(diff[:3])
+		dist_quat = Quaternion.distance(Quaternion(self.goal_quat), Quaternion(self.curr_quat))
+		dist = dist_pos + dist_quat
 
-	def _get_dq(self, dx):
-		# TODO implement
-		# NOTE:
-		# 	this is not needed for this controller to work,
-		# 	since super().joint_positions_for_eef_command() computes the change in configuration;
-		#   however, controllers should have this function implemented for nullspace composition later
+		# compute potential
+		pot = 0.5 * dist * dist
+		print("Baxter6DPoseController: potential %f" % pot)
+		if self.verbose:
+			print("Baxter6DPoseController: position distance %f, rotation distance %f" % (dist_pos, dist_quat))
+		return min(pot, self.max_potential)
 
-		# Jlin, Jang = p.calculateJacobian(...)
-		raise NotImplementedError
+	"""
+	Computes the gradient of the controller based on the current and goal poses.
+	Based on attractive potential field.
+	"""
+	def gradient(self):
+		# compute difference between current and goal pose
+		diff_pos = self.curr_pos - self.goal_pos
+		diff_quat = T.quat_multiply(T.quat_inverse(self.curr_quat), self.goal_quat)
+		# diff_quat = self.curr_quat - self.goal_quat
+		diff = np.hstack([self.move_speed * diff_pos, diff_quat])
 
-	def _get_objective_nullspace(self):
+		# compute gradient
+		grad = diff
+		return grad
+
+	def get_dx(self):
+		# compute gradient
+		grad = self.gradient()
+
+		# compute dx
+		dx = -grad
+		return dx
+
+	def get_dq(self):
+		# compute dx
+		dx = self.get_dx()
+
+		# compute targets
+		if self.control_arm == "left":
+			# target for left arm is to reach goal pose
+			target_left_pos = self.curr_pos + dx[:3]
+			target_left_quat = T.quat_multiply(self.curr_quat, dx[3:7])
+			# target for right arm is to stay in place
+			target_right_pos = self.curr_right_pos + np.zeros_like(dx[:3])
+			target_right_quat_diff = T.quat_multiply(T.quat_inverse(self.curr_right_quat), self.curr_right_quat)
+			target_right_quat = T.quat_multiply(self.curr_right_quat, target_right_quat_diff)
+		else: # self.control_arm == "right"
+			# target for left arm is to stay in place
+			target_left_pos = self.curr_left_pos + np.zeros_like(dx[:3])
+			target_left_quat_diff = T.quat_multiply(T.quat_inverse(self.curr_left_quat), self.curr_left_quat)
+			target_left_quat = T.quat_multiply(self.curr_left_quat, target_left_quat_diff)
+			# target for right arm is to reach goal pose
+			target_right_pos = self.curr_pos + dx[:3]
+			target_right_quat = T.quat_multiply(self.curr_quat, dx[3:7])
+
+		# use inverse kinematics function to compute dq
+		dq = self.inverse_kinematics(
+			target_right_pos,
+			target_right_quat,
+			target_left_pos,
+			target_left_quat,
+			rest_poses=self.robot_jpos_getter()
+		)
+
+		return self.kp * dq
+
+	def get_objective_nullspace(self):
 		# TODO implement
 		# NOTE: needed for nullspace composition later
 
