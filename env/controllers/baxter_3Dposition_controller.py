@@ -1,5 +1,5 @@
 """
-6D pose controller for Baxter
+3D position controller for Baxter
 
 NOTE: requires pybullet module.
 
@@ -24,7 +24,7 @@ from env.controllers import BaxterIKController
 6D pose controller for the Baxter robot, using Pybullet and the urdf description
 files.
 """
-class Baxter6DPoseController(BaxterIKController):
+class Baxter3DPositionController(BaxterIKController):
 
 	"""
 	Constructor.
@@ -36,7 +36,7 @@ class Baxter6DPoseController(BaxterIKController):
 	Inherited from Controller base class.
 	"""
 	def __init__(self, bullet_data_path, robot_jpos_getter, verbose=False):
-		print("Baxter6DPoseController: Initializing 6DPose Controller")
+		print("Baxter3DPositionController: Initializing 3DPosition Controller")
 
 		# initialize super class
 		super().__init__(bullet_data_path, robot_jpos_getter)
@@ -63,18 +63,18 @@ class Baxter6DPoseController(BaxterIKController):
 	"""
 	Sets the goal of the controller in world frame.
 	"""
-	def set_goal(self, control_arm, goal_pos, goal_quat):
+	def set_goal(self, control_arm, goal_pos, goal_quat=None):
 		# check for valid arm
 		if not ((control_arm == "left") or ("control_arm" == right)):
-			print("Baxter6DPoseController: Arm %s not recognized" % arm)
+			print("Baxter3DPositionController: Arm %s not recognized" % arm)
 			raise NameError
 			return
 
         # we now know arm is either "left" or "right"
 		self.control_arm = control_arm
 		self.goal_pos = goal_pos
-		self.goal_quat = goal_quat
-		print("Baxter6DPoseController: New goal set for %s arm" % self.control_arm)
+		self.goal_quat = goal_quat # rotation will not be used to determine goal
+		print("Baxter3DPositionController: New goal set for %s arm" % self.control_arm)
 		return
 
 	"""
@@ -92,16 +92,16 @@ class Baxter6DPoseController(BaxterIKController):
 		if curr_right_pos is None:
 			curr_right_pos, curr_right_quat, curr_left_pos, curr_left_quat = self.ik_robot_eef_joint_cartesian_pose()
 			if self.verbose:
-				print("Baxter6DPoseController: left pos from ik in base frame: ", curr_left_pos)
-				print("Baxter6DPoseController: left rot from ik in base frame: ", curr_left_quat)
-				print("Baxter6DPoseController: right pos from ik in base frame: ", curr_right_pos)
-				print("Baxter6DPoseController: right rot from ik in base frame: ", curr_right_quat)
+				print("Baxter3DPositionController: left pos from ik in base frame: ", curr_left_pos)
+				print("Baxter3DPositionController: left rot from ik in base frame: ", curr_left_quat)
+				print("Baxter3DPositionController: right pos from ik in base frame: ", curr_right_pos)
+				print("Baxter3DPositionController: right rot from ik in base frame: ", curr_right_quat)
 		else:
 			if self.verbose:	
-				print("Baxter6DPoseController: given left pos in base frame: ", curr_left_pos)
-				print("Baxter6DPoseController: given left rot in base frame: ", curr_left_quat)
-				print("Baxter6DPoseController: given right pos in base frame: ", curr_right_pos)
-				print("Baxter6DPoseController: given right rot in base frame: ", curr_right_quat)
+				print("Baxter3DPositionController: given left pos in base frame: ", curr_left_pos)
+				print("Baxter3DPositionController: given left rot in base frame: ", curr_left_quat)
+				print("Baxter3DPositionController: given right pos in base frame: ", curr_right_pos)
+				print("Baxter3DPositionController: given right rot in base frame: ", curr_right_quat)
 
 		# compute left and right poses in world frame
 		curr_left_pos_in_world, curr_left_quat_in_world = self.bullet_base_pose_to_world_pose(
@@ -112,10 +112,10 @@ class Baxter6DPoseController(BaxterIKController):
 		)
 
 		if self.verbose:
-			print("Baxter6DPoseController: left pos in world frame: ", curr_left_pos_in_world)
-			print("Baxter6DPoseController: left rot in world frame: ", curr_left_quat_in_world)
-			print("Baxter6DPoseController: right pos in world frame: ", curr_right_pos_in_world)
-			print("Baxter6DPoseController: right rot in world frame: ", curr_right_quat_in_world)
+			print("Baxter3DPositionController: left pos in world frame: ", curr_left_pos_in_world)
+			print("Baxter3DPositionController: left rot in world frame: ", curr_left_quat_in_world)
+			print("Baxter3DPositionController: right pos in world frame: ", curr_right_pos_in_world)
+			print("Baxter3DPositionController: right rot in world frame: ", curr_right_quat_in_world)
 
 		# set left and right poses
 		self.curr_left_pos = curr_left_pos_in_world
@@ -157,7 +157,7 @@ class Baxter6DPoseController(BaxterIKController):
 
 		# if potential is low enough, no update needed
 		if pot < 0.0005:
-			print("Baxter6DPoseController: Goal met! No update needed.")
+			print("Baxter3DPositionController: Goal met! No update needed.")
 			return velocities
 
 		# compute dq and update state
@@ -196,19 +196,19 @@ class Baxter6DPoseController(BaxterIKController):
 	def potential(self):
 		# compute difference between current and goal pose
 		diff_pos = self.curr_pos - self.goal_pos
-		diff_quat = T.quat_multiply(T.quat_inverse(self.curr_quat), self.goal_quat)
+		diff_quat = T.quat_multiply(T.quat_inverse(self.curr_quat), self.curr_quat) # no difference
 		diff = np.hstack([diff_pos, diff_quat])
 
 		# compute distance to goal
 		dist_pos = np.linalg.norm(diff[:3])
-		dist_quat = Quaternion.distance(Quaternion(self.curr_quat), Quaternion(self.goal_quat))
+		dist_quat = Quaternion.distance(Quaternion(self.curr_quat), Quaternion(self.curr_quat)) # no difference
 		dist = dist_pos + dist_quat
 
 		# compute potential
 		pot = 0.5 * dist * dist
-		print("Baxter6DPoseController: potential %f" % pot)
+		print("Baxter3DPositionController: potential %f" % pot)
 		if self.verbose:
-			print("Baxter6DPoseController: position distance %f, rotation distance %f" % (dist_pos, dist_quat))
+			print("Baxter3DPositionController: position distance %f, rotation distance %f" % (dist_pos, dist_quat))
 		return min(pot, self.max_potential)
 
 	"""
@@ -218,7 +218,7 @@ class Baxter6DPoseController(BaxterIKController):
 	def gradient(self):
 		# compute difference between current and goal pose
 		diff_pos = self.curr_pos - self.goal_pos
-		diff_quat = T.quat_multiply(T.quat_inverse(self.curr_quat), self.goal_quat)
+		diff_quat = T.quat_multiply(T.quat_inverse(self.curr_quat), self.curr_quat) # no difference
 		diff = np.hstack([self.move_speed * diff_pos, diff_quat])
 
 		# compute gradient
