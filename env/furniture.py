@@ -1331,17 +1331,19 @@ class FurnitureEnv(metaclass=EnvMeta):
                 #     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
                 #     robot_jpos_getter=self._robot_jpos_getter,
                 # )
-                from env.controllers import Baxter6DPoseController # Baxter3DPositionController
+                from env.controllers import Baxter6DPoseController # Baxter6DPoseController Baxter3DPositionController
                 self._controller = Baxter6DPoseController(
                     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
                     robot_jpos_getter=self._robot_jpos_getter,
+                    verbose=False
                 )
-                goal_pos = np.array([0.82516098, 0.3, 0.19841084])
-                # goal_quat = np.array([0.2, -0.3, -0.4, 0.03854062]) # nonsense orientation for 3DPositionController
-                goal_quat = np.array([0.68656258, -0.72074515, -0.08759494, 0.03854062]) # orientation for 6DPoseController
-                # goal_quat = T.euler_to_quat(goal_rot)
-                control_arm = "left"
-                self._controller.set_goal(control_arm, goal_pos, goal_quat)
+                goal_pos_left = np.array([0.82516098, 0.3, 0.19841084]) # position for 6DPoseController
+                goal_quat_left = np.array([0.68656258, -0.72074515, -0.08759494, 0.03854062]) # orientation for 6DPoseController
+                goal_pos_right = np.array([0.68432551, -0.29451258, 0.21005051]) # position for 6DPoseController
+                goal_quat_right = np.array([-0.54690822, 0.48197699, 0.51618452, 0.44960329]) # orientation for 6DPoseController
+                goal_quat_nonsense = np.array([0.2, -0.3, -0.4, 0.03854062]) # nonsense orientation for 3DPositionController
+                # self._controller.set_goal("left", goal_pos_left, goal_quat_left)
+                self._controller.set_goal("right", goal_pos_right, goal_quat_right)
 
     def _load_model_robot(self):
         """

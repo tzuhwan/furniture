@@ -35,14 +35,15 @@ class Baxter6DPoseController(BaxterIKController):
 
 	Inherited from Controller base class.
 	"""
-	def __init__(self, bullet_data_path, robot_jpos_getter, verbose=False):
+	def __init__(self, bullet_data_path, robot_jpos_getter, verbose=True, debug=False):
 		print("Baxter6DPoseController: Initializing 6DPose Controller")
 
 		# initialize super class
 		super().__init__(bullet_data_path, robot_jpos_getter)
 
-		# set verbose flag
+		# set debug and verbose flags
 		self.verbose = verbose
+		self.debug = debug
 
 		# max potential
 		self.max_potential = 100
@@ -52,7 +53,7 @@ class Baxter6DPoseController(BaxterIKController):
 
 		# set move and rotate speed, for scaling motions (same as parameters in furniture.py)
 		self.move_speed = 0.025
-		self.rotate_speec = 11.25
+		self.rotate_speed = 0.05
 
 		# initialize control arm
 		self.control_arm = ""
@@ -65,7 +66,7 @@ class Baxter6DPoseController(BaxterIKController):
 	"""
 	def set_goal(self, control_arm, goal_pos, goal_quat):
 		# check for valid arm
-		if not ((control_arm == "left") or ("control_arm" == right)):
+		if not ((control_arm == "left") or (control_arm == "right")):
 			print("Baxter6DPoseController: Arm %s not recognized" % arm)
 			raise NameError
 			return
@@ -91,13 +92,13 @@ class Baxter6DPoseController(BaxterIKController):
 		# if none, then get pose and orientation of end-effectors in base frame from ik
 		if curr_right_pos is None:
 			curr_right_pos, curr_right_quat, curr_left_pos, curr_left_quat = self.ik_robot_eef_joint_cartesian_pose()
-			if self.verbose:
+			if self.debug:
 				print("Baxter6DPoseController: left pos from ik in base frame: ", curr_left_pos)
 				print("Baxter6DPoseController: left rot from ik in base frame: ", curr_left_quat)
 				print("Baxter6DPoseController: right pos from ik in base frame: ", curr_right_pos)
 				print("Baxter6DPoseController: right rot from ik in base frame: ", curr_right_quat)
 		else:
-			if self.verbose:	
+			if self.debug:	
 				print("Baxter6DPoseController: given left pos in base frame: ", curr_left_pos)
 				print("Baxter6DPoseController: given left rot in base frame: ", curr_left_quat)
 				print("Baxter6DPoseController: given right pos in base frame: ", curr_right_pos)
@@ -111,7 +112,7 @@ class Baxter6DPoseController(BaxterIKController):
 			(curr_right_pos, curr_right_quat)
 		)
 
-		if self.verbose:
+		if self.debug:
 			print("Baxter6DPoseController: left pos in world frame: ", curr_left_pos_in_world)
 			print("Baxter6DPoseController: left rot in world frame: ", curr_left_quat_in_world)
 			print("Baxter6DPoseController: right pos in world frame: ", curr_right_pos_in_world)
@@ -129,7 +130,7 @@ class Baxter6DPoseController(BaxterIKController):
 			self.curr_quat = self.curr_left_quat
 		else: # self.control_arm == "right"
 			self.curr_pos = self.curr_right_pos
-			self.curr_quat = self.curr_right_pos
+			self.curr_quat = self.curr_right_quat
 
 		return
 
@@ -219,7 +220,7 @@ class Baxter6DPoseController(BaxterIKController):
 		# compute difference between current and goal pose
 		diff_pos = self.curr_pos - self.goal_pos
 		diff_quat = T.quat_multiply(T.quat_inverse(self.curr_quat), self.goal_quat)
-		diff = np.hstack([self.move_speed * diff_pos, diff_quat])
+		diff = np.hstack([diff_pos, diff_quat])
 
 		# compute gradient
 		grad = diff
@@ -240,8 +241,9 @@ class Baxter6DPoseController(BaxterIKController):
 		# compute targets
 		if self.control_arm == "left":
 			# target for left arm is to reach goal pose
-			target_left_pos = self.curr_pos + dx[:3]
+			target_left_pos = self.curr_pos + (self.move_speed * dx[:3]) # scale down position
 			target_left_quat = T.quat_multiply(self.curr_quat, dx[3:7])
+			target_left_quat = T.quat_slerp(self.curr_quat, target_left_quat, self.rotate_speed) # scale down rotation
 			# target for right arm is to stay in place
 			target_right_pos = self.curr_right_pos + np.zeros_like(dx[:3])
 			target_right_quat_diff = T.quat_multiply(T.quat_inverse(self.curr_right_quat), self.curr_right_quat)
@@ -252,8 +254,9 @@ class Baxter6DPoseController(BaxterIKController):
 			target_left_quat_diff = T.quat_multiply(T.quat_inverse(self.curr_left_quat), self.curr_left_quat)
 			target_left_quat = T.quat_multiply(self.curr_left_quat, target_left_quat_diff)
 			# target for right arm is to reach goal pose
-			target_right_pos = self.curr_pos + dx[:3]
+			target_right_pos = self.curr_pos + (self.move_speed * dx[:3]) # scale down position
 			target_right_quat = T.quat_multiply(self.curr_quat, dx[3:7])
+			target_right_quat = T.quat_slerp(self.curr_quat, target_right_quat, self.rotate_speed) # scale down rotation
 
 		# use inverse kinematics function to compute dq
 		dq = self.inverse_kinematics(

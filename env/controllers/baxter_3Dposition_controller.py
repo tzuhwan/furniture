@@ -35,13 +35,14 @@ class Baxter3DPositionController(BaxterIKController):
 
 	Inherited from Controller base class.
 	"""
-	def __init__(self, bullet_data_path, robot_jpos_getter, verbose=False):
+	def __init__(self, bullet_data_path, robot_jpos_getter, verbose=True, debug=False):
 		print("Baxter3DPositionController: Initializing 3DPosition Controller")
 
 		# initialize super class
 		super().__init__(bullet_data_path, robot_jpos_getter)
 
-		# set verbose flag
+		# set debug and verbose flags
+		self.debug = debug
 		self.verbose = verbose
 
 		# max potential
@@ -50,9 +51,12 @@ class Baxter3DPositionController(BaxterIKController):
 		# controller gain
 		self.kp = 1
 
-		# set move and rotate speed, for scaling motions (same as parameters in furniture.py)
+		# potential threshold (potential less than this means no update will be performed)
+		self.potential_threshold = 0.0005
+
+		# set move and rotate speed, for scaling motions
 		self.move_speed = 0.025
-		self.rotate_speec = 11.25
+		self.rotate_speed = 0.05
 
 		# initialize control arm
 		self.control_arm = ""
@@ -65,7 +69,7 @@ class Baxter3DPositionController(BaxterIKController):
 	"""
 	def set_goal(self, control_arm, goal_pos, goal_quat=None):
 		# check for valid arm
-		if not ((control_arm == "left") or ("control_arm" == right)):
+		if not ((control_arm == "left") or (control_arm == "right")):
 			print("Baxter3DPositionController: Arm %s not recognized" % arm)
 			raise NameError
 			return
@@ -91,13 +95,13 @@ class Baxter3DPositionController(BaxterIKController):
 		# if none, then get pose and orientation of end-effectors in base frame from ik
 		if curr_right_pos is None:
 			curr_right_pos, curr_right_quat, curr_left_pos, curr_left_quat = self.ik_robot_eef_joint_cartesian_pose()
-			if self.verbose:
+			if self.debug:
 				print("Baxter3DPositionController: left pos from ik in base frame: ", curr_left_pos)
 				print("Baxter3DPositionController: left rot from ik in base frame: ", curr_left_quat)
 				print("Baxter3DPositionController: right pos from ik in base frame: ", curr_right_pos)
 				print("Baxter3DPositionController: right rot from ik in base frame: ", curr_right_quat)
 		else:
-			if self.verbose:	
+			if self.debug:	
 				print("Baxter3DPositionController: given left pos in base frame: ", curr_left_pos)
 				print("Baxter3DPositionController: given left rot in base frame: ", curr_left_quat)
 				print("Baxter3DPositionController: given right pos in base frame: ", curr_right_pos)
@@ -111,7 +115,7 @@ class Baxter3DPositionController(BaxterIKController):
 			(curr_right_pos, curr_right_quat)
 		)
 
-		if self.verbose:
+		if self.debug:
 			print("Baxter3DPositionController: left pos in world frame: ", curr_left_pos_in_world)
 			print("Baxter3DPositionController: left rot in world frame: ", curr_left_quat_in_world)
 			print("Baxter3DPositionController: right pos in world frame: ", curr_right_pos_in_world)
@@ -129,7 +133,7 @@ class Baxter3DPositionController(BaxterIKController):
 			self.curr_quat = self.curr_left_quat
 		else: # self.control_arm == "right"
 			self.curr_pos = self.curr_right_pos
-			self.curr_quat = self.curr_right_pos
+			self.curr_quat = self.curr_right_quat
 
 		return
 
@@ -156,7 +160,7 @@ class Baxter3DPositionController(BaxterIKController):
 		velocities = np.zeros(14)
 
 		# if potential is low enough, no update needed
-		if pot < 0.0005:
+		if pot < self.potential_threshold:
 			print("Baxter3DPositionController: Goal met! No update needed.")
 			return velocities
 
@@ -219,7 +223,7 @@ class Baxter3DPositionController(BaxterIKController):
 		# compute difference between current and goal pose
 		diff_pos = self.curr_pos - self.goal_pos
 		diff_quat = T.quat_multiply(T.quat_inverse(self.curr_quat), self.curr_quat) # no difference
-		diff = np.hstack([self.move_speed * diff_pos, diff_quat])
+		diff = np.hstack([diff_pos, diff_quat])
 
 		# compute gradient
 		grad = diff
@@ -240,8 +244,8 @@ class Baxter3DPositionController(BaxterIKController):
 		# compute targets
 		if self.control_arm == "left":
 			# target for left arm is to reach goal pose
-			target_left_pos = self.curr_pos + dx[:3]
-			target_left_quat = T.quat_multiply(self.curr_quat, dx[3:7])
+			target_left_pos = self.curr_pos + (self.move_speed * dx[:3]) # scale down position
+			target_left_quat = T.quat_multiply(self.curr_quat, dx[3:7]) # scale down rotation not necessary, since no rotation command
 			# target for right arm is to stay in place
 			target_right_pos = self.curr_right_pos + np.zeros_like(dx[:3])
 			target_right_quat_diff = T.quat_multiply(T.quat_inverse(self.curr_right_quat), self.curr_right_quat)
@@ -252,8 +256,8 @@ class Baxter3DPositionController(BaxterIKController):
 			target_left_quat_diff = T.quat_multiply(T.quat_inverse(self.curr_left_quat), self.curr_left_quat)
 			target_left_quat = T.quat_multiply(self.curr_left_quat, target_left_quat_diff)
 			# target for right arm is to reach goal pose
-			target_right_pos = self.curr_pos + dx[:3]
-			target_right_quat = T.quat_multiply(self.curr_quat, dx[3:7])
+			target_right_pos = self.curr_pos + (self.move_speed * dx[:3]) # scale down position
+			target_right_quat = T.quat_multiply(self.curr_quat, dx[3:7]) # scale down rotation not necessary, since no rotation command
 
 		# use inverse kinematics function to compute dq
 		dq = self.inverse_kinematics(
