@@ -51,7 +51,10 @@ class Baxter6DPoseController(BaxterIKController):
 		# controller gain
 		self.kp = 1
 
-		# set move and rotate speed, for scaling motions (same as parameters in furniture.py)
+		# potential threshold (potential less than this means no update will be performed)
+		self.potential_threshold = 0.0005
+
+		# set move and rotate speed, for scaling motions
 		self.move_speed = 0.025
 		self.rotate_speed = 0.05
 
@@ -157,7 +160,7 @@ class Baxter6DPoseController(BaxterIKController):
 		velocities = np.zeros(14)
 
 		# if potential is low enough, no update needed
-		if pot < 0.0005:
+		if pot < self.potential_threshold:
 			print("Baxter6DPoseController: Goal met! No update needed.")
 			return velocities
 
