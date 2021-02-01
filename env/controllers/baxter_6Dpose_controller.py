@@ -32,6 +32,7 @@ class Baxter6DPoseController(BaxterIKController):
 	@param robot_jpos_getter, a function that returns the joint positions of
 		the robot to be controlled as a numpy array
 	@param verbose, a boolean that indicates how much output gets printed during controller execution
+	@param debug, a boolean that indicates whether to print out pose information for end-effectors
 
 	Inherited from Controller base class.
 	"""
@@ -63,6 +64,63 @@ class Baxter6DPoseController(BaxterIKController):
 
 		# initialize current pose
 		self.set_current_pose()
+
+	"""
+    Syncs the internal Pybullet robot state to the joint positions of the
+    robot being controlled.
+
+    Inherited from Controller base class.
+    """
+	def sync_state(self):
+		super().sync_state()
+
+	"""
+	Returns joint velocities to control the robot after the target end effector
+    positions and orientations are updated from arguments @left and @right.
+    If no arguments are provided, joint velocities will be computed based
+    on the previously recorded target.
+
+    Inherited from Controller base class.
+	"""
+	def get_control(self, right=None, left=None):
+		# sync joint positions for IK
+		self.sync_ik_robot(self.robot_jpos_getter())
+
+		# set current pose and compute potential
+		self.set_current_pose()
+		pot = self.potential()
+
+		# initialize velocities for proportional controller
+		velocities = np.zeros(14)
+
+		# if potential is low enough, no update needed
+		if pot < self.potential_threshold:
+			print("Baxter6DPoseController: Goal met! No update needed.")
+			return velocities
+
+		# compute dq and update state
+		# this is done in iterations, as in BaxterIKController
+		for _ in range(5):
+			# get dq
+			dq = self.get_dq()
+
+			# sync robot to match joint angles
+			self.sync_ik_robot(dq, sync_last=True)
+
+		# compute error between current and commanded joint positions
+		deltas = self._get_current_error(self.robot_jpos_getter(), dq)
+
+		# compute velocities based on error
+		for i, delta in enumerate(deltas):
+			velocities[i] = -2 * delta # TODO what does the 2 do? scaling factor?
+		
+		# clip velocities
+		velocities = self.clip_joint_velocities(velocities)
+		return velocities
+
+	###########################
+	### GETTERS AND SETTERS ###
+	###########################
 
 	"""
 	Sets the goal of the controller in world frame.
@@ -137,61 +195,15 @@ class Baxter6DPoseController(BaxterIKController):
 
 		return
 
+	"""
+	Returns the arm being controlled by the controller.
+	"""
 	def get_control_arm(self):
 		return self.control_arm
 
-	"""
-	Returns joint velocities to control the robot after the target end effector
-    positions and orientations are updated from arguments @left and @right.
-    If no arguments are provided, joint velocities will be computed based
-    on the previously recorded target.
-
-    Inherited from Controller base class.
-	"""
-	def get_control(self, right=None, left=None):
-		# sync joint positions for IK
-		self.sync_ik_robot(self.robot_jpos_getter())
-
-		# set current pose and compute potential
-		self.set_current_pose()
-		pot = self.potential()
-
-		# initialize velocities for proportional controller
-		velocities = np.zeros(14)
-
-		# if potential is low enough, no update needed
-		if pot < self.potential_threshold:
-			print("Baxter6DPoseController: Goal met! No update needed.")
-			return velocities
-
-		# compute dq and update state
-		# this is done in iterations, as in BaxterIKController
-		for _ in range(5):
-			# get dq
-			dq = self.get_dq()
-
-			# sync robot to match joint angles
-			self.sync_ik_robot(dq, sync_last=True)
-
-		# compute error between current and commanded joint positions
-		deltas = self._get_current_error(self.robot_jpos_getter(), dq)
-
-		# compute velocities based on error
-		for i, delta in enumerate(deltas):
-			velocities[i] = -2 * delta # TODO what does the 2 do? scaling factor?
-		
-		# clip velocities
-		velocities = self.clip_joint_velocities(velocities)
-		return velocities
-
-	"""
-    Syncs the internal Pybullet robot state to the joint positions of the
-    robot being controlled.
-
-    Inherited from Controller base class.
-    """
-	def sync_state(self):
-		super().sync_state()
+	#################################################
+	### POTENTIAL FIELD AND CONTROL LAW FUNCTIONS ###
+	#################################################
 
 	"""
 	Computes the potential of the controller based on the current and goal poses.
@@ -229,6 +241,12 @@ class Baxter6DPoseController(BaxterIKController):
 		grad = diff
 		return grad
 
+	"""
+	Compute the change in pose induced by the controller.
+
+	@param none
+	@return the change in 6D pose induced by the controller
+	"""
 	def get_dx(self):
 		# compute gradient
 		grad = self.gradient()
@@ -237,6 +255,12 @@ class Baxter6DPoseController(BaxterIKController):
 		dx = -grad
 		return dx
 
+	"""
+	Compute the change in configuration induced by the controller.
+
+	@param none
+	@return the commanded joint positions induced by the controller
+	"""
 	def get_dq(self):
 		# compute dx
 		dx = self.get_dx()
@@ -272,6 +296,9 @@ class Baxter6DPoseController(BaxterIKController):
 
 		return self.kp * dq
 
+	"""
+	Computes the nullspace for performing lower-order controller commands subject to this controller.
+	"""
 	def get_objective_nullspace(self):
 		# TODO implement
 		# NOTE: needed for nullspace composition later
