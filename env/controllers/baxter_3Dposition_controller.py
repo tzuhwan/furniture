@@ -289,7 +289,7 @@ class Baxter3DPositionController(BaxterIKController):
 			rest_poses=self.robot_jpos_getter()
 		)
 
-		return self.kp * dq
+		return dq
 
 	"""
 	Computes the nullspace for performing lower-order controller commands subject to this controller.
