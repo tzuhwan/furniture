@@ -49,13 +49,10 @@ class BaxterRotationController(BaxterIKController):
 		# max potential
 		self.max_potential = 100
 
-		# controller gain
-		self.kp = 1
-
 		# potential threshold (potential less than this means no update will be performed)
 		self.potential_threshold = 0.0005
 
-		# set move and rotate speed, for scaling motions
+		# set move and rotate speed, for scaling motions; these are equivalent to controller gains
 		self.move_speed = 0.025
 		self.rotate_speed = 0.01
 
@@ -253,7 +250,7 @@ class BaxterRotationController(BaxterIKController):
 		# compute change in rotation to wrist joint
 		dq_wrist = abs(self.rotate_speed * grad)
 
-		return self.kp * dq, self.kp * dq_wrist
+		return dq, dq_wrist
 
 	"""
 	Computes the nullspace for performing lower-order controller commands subject to this controller.

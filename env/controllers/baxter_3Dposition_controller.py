@@ -49,13 +49,10 @@ class Baxter3DPositionController(BaxterIKController):
 		# max potential
 		self.max_potential = 100
 
-		# controller gain
-		self.kp = 1
-
 		# potential threshold (potential less than this means no update will be performed)
 		self.potential_threshold = 0.0005
 
-		# set move and rotate speed, for scaling motions
+		# set move and rotate speed, for scaling motions; these are equivalent to controller gains
 		self.move_speed = 0.025
 		self.rotate_speed = 0.05
 

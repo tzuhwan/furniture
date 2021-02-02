@@ -915,6 +915,8 @@ class FurnitureEnv(metaclass=EnvMeta):
                 left_gripper_dis = action[-2]
                 action = np.concatenate([right_d_pos, right_d_quat, left_d_pos,
                                          left_d_quat, [right_gripper_dis, left_gripper_dis]])
+                # print("left gripper pos: ", self._left_hand_pos) # TODO
+                # print("right gripper pos: ", self._right_hand_pos) # TODO
 
             input_1 = self._make_input(action[:7], self._right_hand_quat)
             if self._agent_type == "Sawyer":
@@ -1334,8 +1336,9 @@ class FurnitureEnv(metaclass=EnvMeta):
                 from env.controllers import Baxter6DPoseController
                 from env.controllers import Baxter3DPositionController
                 from env.controllers import BaxterRotationController
-                # Baxter6DPoseController Baxter3DPositionController BaxterRotationController
-                self._controller = BaxterRotationController(
+                from env.controllers import BaxterAlignmentController
+                ### Baxter6DPoseController Baxter3DPositionController BaxterRotationController BaxterAlignmentController
+                self._controller = BaxterAlignmentController(
                     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
                     robot_jpos_getter=self._robot_jpos_getter,
                     verbose=False
@@ -1353,6 +1356,13 @@ class FurnitureEnv(metaclass=EnvMeta):
                 elif type(self._controller) == BaxterRotationController:
                     ### for Rotation controller
                     self._controller.set_goal("left", 3.141) # 1.571, 3.141, 4.712, 6.283
+                elif type(self._controller) == BaxterAlignmentController:
+                    ### for alignment controller
+                    # align_pos = [0.80842941, -0.02605057, 0.23083445] # more testing needed for this
+                    align_pos_left = [0.82273044, 0.29672234, 0.00181328]
+                    align_pos_right = [0.82051034, -0.24336258, 0.08321501]
+                    self._controller.set_goal("left", "+Z", align_pos_left)
+                    # self._controller.set_goal("right", "+Z", align_pos_right)
                 else:
                     print("No need to set goal for controller of type ", type(self._controller))
 

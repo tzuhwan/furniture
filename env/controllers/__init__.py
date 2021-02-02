@@ -4,3 +4,4 @@ from .sawyer_ik_controller import SawyerIKController
 from .baxter_6Dpose_controller import Baxter6DPoseController
 from .baxter_3Dposition_controller import Baxter3DPositionController
 from .baxter_rotation_controller import BaxterRotationController
+from .baxter_alignment_controller import BaxterAlignmentController
