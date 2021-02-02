@@ -153,8 +153,8 @@ class BaxterAlignmentController(BaxterIKController):
 		elif point_axis == "-Z":
 			ee_point_axis = [0, 0, -1]
 		else:
-			print("BaxterAlignmentController: Axis %s not recognized as +/- XYZ. Using +Y as default.")
-			ee_point_axis = [0, 1, 0]
+			print("BaxterAlignmentController: Axis %s not recognized as +/- XYZ. Using +Z as default.")
+			ee_point_axis = [0, 0, 1]
 
         # we now know arm is either "left" or "right"
 		self.control_arm = control_arm
