@@ -52,6 +52,9 @@ class BaxterRotationController(BaxterIKController):
 		# potential threshold (potential less than this means no update will be performed)
 		self.potential_threshold = 0.0005
 
+		# controller objective met flag
+		self.objective_met = False
+
 		# set move and rotate speed, for scaling motions; these are equivalent to controller gains
 		self.move_speed = 0.025
 		self.rotate_speed = 0.01
@@ -111,6 +114,7 @@ class BaxterRotationController(BaxterIKController):
 		# if potential is low enough, no update needed
 		if pot < self.potential_threshold:
 			print("BaxterRotationController: Goal met! No update needed.")
+			self.objective_met = True
 			return velocities
 
 		# compute dq and update state
@@ -236,6 +240,7 @@ class BaxterRotationController(BaxterIKController):
 				print("BaxterRotationController: too close to joint limits, no update needed")
 				print("BaxterRotationController: current wrist position %f, lower joint limit %f, upper joint limit %f"
 					% (dq[self.left_wrist_relevant_idx], self.left_lower_limit, self.left_upper_limit))
+				self.objective_met = True
 			else:
 				dq[self.left_wrist_relevant_idx] = commanded_change
 		else: # self.control_arm == "right"
@@ -244,6 +249,7 @@ class BaxterRotationController(BaxterIKController):
 				print("BaxterRotationController: too close to joint limits, no update needed")
 				print("BaxterRotationController: current wrist position %f, lower joint limit %f, upper joint limit %f"
 					% (dq[self.right_wrist_relevant_idx], self.right_lower_limit, self.right_upper_limit))
+				self.objective_met = True
 			else:
 				dq[self.right_wrist_relevant_idx] = commanded_change
 

@@ -53,6 +53,9 @@ class BaxterAlignmentController(BaxterIKController):
 		# potential threshold (potential less than this means no update will be performed)
 		self.potential_threshold = 0.004
 
+		# controller objective met flag
+		self.objective_met = False
+
 		# set move and rotate speed, for scaling motions; these are equivalent to controller gains
 		self.move_speed = 0.025
 		self.rotate_speed = 0.001
@@ -95,6 +98,7 @@ class BaxterAlignmentController(BaxterIKController):
 		# if potential is low enough, no update needed
 		if pot < self.potential_threshold:
 			print("BaxterAlignmentController: Goal met! No update needed.")
+			self.objective_met = True
 			return velocities
 
 		# compute dq and update state

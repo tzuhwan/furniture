@@ -1328,43 +1328,44 @@ class FurnitureEnv(metaclass=EnvMeta):
 
             elif self._agent_type == 'Baxter':
                 import env.models
-                # from env.controllers import BaxterIKController
-                # self._controller = BaxterIKController(
-                #     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
-                #     robot_jpos_getter=self._robot_jpos_getter,
-                # )
-                from env.controllers import Baxter6DPoseController
-                from env.controllers import Baxter3DPositionController
-                from env.controllers import BaxterRotationController
-                from env.controllers import BaxterAlignmentController
-                ### Baxter6DPoseController Baxter3DPositionController BaxterRotationController BaxterAlignmentController
-                self._controller = BaxterAlignmentController(
+                from env.controllers import BaxterIKController
+                self._controller = BaxterIKController(
                     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
                     robot_jpos_getter=self._robot_jpos_getter,
-                    verbose=False
                 )
+                # TODO TODO TODO
+                # from env.controllers import Baxter6DPoseController
+                # from env.controllers import Baxter3DPositionController
+                # from env.controllers import BaxterRotationController
+                # from env.controllers import BaxterAlignmentController
+                ### Baxter6DPoseController Baxter3DPositionController BaxterRotationController BaxterAlignmentController
+                # self._controller = Baxter6DPoseController(
+                #     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
+                #     robot_jpos_getter=self._robot_jpos_getter,
+                #     verbose=False
+                # )
 
-                if (type(self._controller) == Baxter6DPoseController) or (type(self._controller) == Baxter3DPositionController):
-                    ### for 6DPose or 3DPosition controllers
-                    goal_pos_left = np.array([0.82516098, 0.3, 0.19841084]) # position for 6DPoseController
-                    goal_quat_left = np.array([0.68656258, -0.72074515, -0.08759494, 0.03854062]) # orientation for 6DPoseController
-                    goal_pos_right = np.array([0.68432551, -0.29451258, 0.21005051]) # position for 6DPoseController
-                    goal_quat_right = np.array([-0.54690822, 0.48197699, 0.51618452, 0.44960329]) # orientation for 6DPoseController
-                    goal_quat_nonsense = np.array([0.2, -0.3, -0.4, 0.03854062]) # nonsense orientation for 3DPositionController
-                    # self._controller.set_goal("left", goal_pos_left, goal_quat_left)
-                    self._controller.set_goal("right", goal_pos_right, goal_quat_right)
-                elif type(self._controller) == BaxterRotationController:
-                    ### for Rotation controller
-                    self._controller.set_goal("left", 3.141) # 1.571, 3.141, 4.712, 6.283
-                elif type(self._controller) == BaxterAlignmentController:
-                    ### for alignment controller
-                    # align_pos = [0.80842941, -0.02605057, 0.23083445] # more testing needed for this
-                    align_pos_left = [0.82273044, 0.29672234, 0.00181328]
-                    align_pos_right = [0.82051034, -0.24336258, 0.08321501]
-                    self._controller.set_goal("left", "+Z", align_pos_left)
-                    # self._controller.set_goal("right", "+Z", align_pos_right)
-                else:
-                    print("No need to set goal for controller of type ", type(self._controller))
+                # if (type(self._controller) == Baxter6DPoseController) or (type(self._controller) == Baxter3DPositionController):
+                #     ### for 6DPose or 3DPosition controllers
+                #     goal_pos_left = np.array([0.82516098, 0.3, 0.19841084]) # position for 6DPoseController
+                #     goal_quat_left = np.array([0.68656258, -0.72074515, -0.08759494, 0.03854062]) # orientation for 6DPoseController
+                #     goal_pos_right = np.array([0.68432551, -0.29451258, 0.21005051]) # position for 6DPoseController
+                #     goal_quat_right = np.array([-0.54690822, 0.48197699, 0.51618452, 0.44960329]) # orientation for 6DPoseController
+                #     goal_quat_nonsense = np.array([0.2, -0.3, -0.4, 0.03854062]) # nonsense orientation for 3DPositionController
+                #     # self._controller.set_goal("left", goal_pos_left, goal_quat_left)
+                #     self._controller.set_goal("right", goal_pos_right, goal_quat_right)
+                # elif type(self._controller) == BaxterRotationController:
+                #     ### for Rotation controller
+                #     self._controller.set_goal("left", 3.141) # 1.571, 3.141, 4.712, 6.283
+                # elif type(self._controller) == BaxterAlignmentController:
+                #     ### for alignment controller
+                #     # align_pos = [0.80842941, -0.02605057, 0.23083445] # more testing needed for this
+                #     align_pos_left = [0.82273044, 0.29672234, 0.00181328]
+                #     align_pos_right = [0.82051034, -0.24336258, 0.08321501]
+                #     self._controller.set_goal("left", "+Z", align_pos_left)
+                #     # self._controller.set_goal("right", "+Z", align_pos_right)
+                # else:
+                #     print("No need to set goal for controller of type ", type(self._controller))
 
     def _load_model_robot(self):
         """

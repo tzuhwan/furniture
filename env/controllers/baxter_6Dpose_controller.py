@@ -52,6 +52,9 @@ class Baxter6DPoseController(BaxterIKController):
 		# potential threshold (potential less than this means no update will be performed)
 		self.potential_threshold = 0.0005
 
+		# controller objective met flag
+		self.objective_met = False
+
 		# set move and rotate speed, for scaling motions; these are equivalent to controller gains
 		self.move_speed = 0.025
 		self.rotate_speed = 0.05
@@ -93,6 +96,7 @@ class Baxter6DPoseController(BaxterIKController):
 		# if potential is low enough, no update needed
 		if pot < self.potential_threshold:
 			print("Baxter6DPoseController: Goal met! No update needed.")
+			self.objective_met = True
 			return velocities
 
 		# compute dq and update state

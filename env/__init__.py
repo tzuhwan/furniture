@@ -7,6 +7,7 @@ from env.furniture_baxter import FurnitureBaxterEnv
 from env.furniture_sawyer import FurnitureSawyerEnv
 from env.furniture_cursor import FurnitureCursorEnv
 from env.furniture_baxter_block import FurnitureBaxterBlockEnv
+from env.furniture_baxter_assembly import FurnitureBaxterAssemblyEnv
 
 # OpenAI gym interface
 from gym.envs.registration import register
