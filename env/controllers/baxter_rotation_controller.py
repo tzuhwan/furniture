@@ -252,12 +252,129 @@ class BaxterRotationController(BaxterIKController):
 
 		return dq, dq_wrist
 
+	###################################################
+	### JACOBIAN AND NULLSPACE PROJECTION FUNCTIONS ###
+	###################################################
+
+	"""
+	Multiplies two matrices together.
+
+	@param m1_input, the first (mxp) matrix to multiply
+	@param m2_input, the second (pxn) matrix to multiply
+	@return the (mxn) matrix as a numpy array
+	"""
+	def matrixMultiply(self, m1_input, m2_input):
+		# make both matrices numpy arrays
+		m1 = np.array(m1_input)
+		m2 = np.array(m2_input)
+
+		# multiply matrices
+		m = np.matmul(m1, m2)
+
+		return m
+
+	"""
+	Computes the Jacobian for this controller.
+
+	In this case, returns 3xn angular manipulator Jacobian.
+	"""
+	def get_objective_jacobian(self):
+		# compute joint states and joint info
+		joint_states = p.getJointStates(self.ik_robot, range(p.getNumJoints(self.ik_robot)))
+		joint_infos = [p.getJointInfo(self.ik_robot, i) for i in range(p.getNumJoints(self.ik_robot))]
+		
+		# get joint states for relevant joints
+		joint_states = [j for j, i in zip(joint_states, joint_infos) if i[3] > -1]
+		if self.debug:
+			relevant_joints = [(i[0], i[1]) for i in joint_infos if i[3] > -1]
+			print(relevant_joints)
+
+		# get joint positions from joint states
+		joint_positions = [state[0] for state in joint_states]
+
+		# set zero vector (for joint velocities and accelerations)
+		zero_vec = [0.0] * len(joint_positions)
+
+		# set local position on relevant joint
+		local_pos = [0.0, 0.0, 0.0]
+
+		# get appropriate end-effector
+		if self.control_arm == "left":
+			ee = self.effector_left
+		else: # self.control_arm == "right"
+			ee = self.effector_right
+
+		# compute linear and angular Jacobians for all relevant joints
+		J_lin_reljoints, J_ang_reljoints = p.calculateJacobian(
+			self.ik_robot,
+			ee,
+			local_pos,
+			joint_positions,
+			zero_vec,
+			zero_vec
+		)
+
+		if self.debug:
+			print("linear Jacobian row size: ", len(J_lin_reljoints), "col size: ", len(J_lin_reljoints[0]))
+			print("angular Jacobian size: ", len(J_ang_reljoints), "col size: ", len(J_ang_reljoints[0]))
+		
+		# first column corresponds to head_pan, which we do not care about for manipulation
+		# initialize tuples for linear and angular Jacobians
+		J_lin = ()
+		J_ang = ()
+		# remove first item in each row, which corresponds to head_pan
+		for r in J_lin_reljoints:
+			J_lin = J_lin + (r[1:],)
+		for r in J_ang_reljoints:
+			J_ang = J_ang + (r[1:],)
+
+		if self.debug:
+			print("linear Jacobian row size: ", len(J_lin), "col size: ", len(J_lin[0]))
+			print("angular Jacobian size: ", len(J_ang), "col size: ", len(J_ang[0]))
+
+		if self.verbose:
+			print("BaxterRotationController: computed %dx%d Jacobian" % (len(J_ang), len(J_ang[0])))
+
+		return J_ang
+
 	"""
 	Computes the nullspace for performing lower-order controller commands subject to this controller.
 	"""
 	def get_objective_nullspace(self):
-		# TODO implement
-		# NOTE: needed for nullspace composition later
+		# get (3xn) objective Jacobian
+		J = self.get_objective_jacobian()
 
-		# Jlin, Jang = p.calculateJacobian(...)
-		raise NotImplementedError
+		# get (nxn) identity
+		ndof = len(J[0])
+		I = np.identity(ndof)
+
+		# compute nullspace
+		# nullspace should be identity
+		# lower-order controller command should not conflict with rotation command
+		N = I # (nxn)
+
+		if self.verbose:
+			print("BaxterRotationController: computed %dx%d nullspace" % (len(N), len(N[0])))
+
+		return N
+
+	"""
+	Projects a lower objective controller command into the nullspace of this controller.
+
+	@param dq_lower_priority, the controller command from the lower priority controller
+	@return the change in configuration of the lower priority controller projected into the nullspace of this controller
+	"""
+	def nullspace_projection(self, dq_lower_priority):
+		# get objective nullspace
+		N = self.get_objective_nullspace()
+
+		# project controller objective into nullspace as numpy array
+		dq_projected_mat = self.matrixMultiply(N, dq_lower_priority)
+
+		# convert numpy array to list
+		dq_projected = list(dq_projected_mat)
+
+		if self.verbose:
+			print("BaxterRotationController: computed %dx1 projected controller command" % len(dq_projected))
+
+		return dq_projected
