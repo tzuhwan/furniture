@@ -145,11 +145,12 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             config.furniture_id = furniture_name2id[config.furniture_name]
         ob = self.reset(config.furniture_id, config.background)
         # reset swivel base
-        print("reseting base pose")
-        self._set_qpos('1_chair_base',
-            [-0.1, 0.0, 0.0144],
-            [0.996917333733128, 0.07845909572784494, 0.0, 0.0]
-        )
+        if config.furniture_id == 7: # swivel chair
+            print("reseting swivel chair base pose")
+            self._set_qpos('1_chair_base',
+                [-0.1, 0.0, 0.0144],
+                [0.996917333733128, 0.07845909572784494, 0.0, 0.0]
+            )
 
         if config.render:
             self.render()
