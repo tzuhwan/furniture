@@ -915,8 +915,17 @@ class FurnitureEnv(metaclass=EnvMeta):
                 left_gripper_dis = action[-2]
                 action = np.concatenate([right_d_pos, right_d_quat, left_d_pos,
                                          left_d_quat, [right_gripper_dis, left_gripper_dis]])
-                # print("left gripper pos: ", self._left_hand_pos) # TODO
-                # print("right gripper pos: ", self._right_hand_pos) # TODO
+                print("left gripper pos: ", self._left_hand_pos, "left gripper quat: ", self._left_hand_quat) # TODO
+                print("right gripper pos: ", self._right_hand_pos, "right gripper quat: ", self._right_hand_quat) # TODO
+                right_pos, right_quat, left_pos, left_quat = self._controller.ik_robot_eef_joint_cartesian_pose()
+                right_pos_world, right_quat_world = self._controller.bullet_base_pose_to_world_pose(
+                    (right_pos, right_quat)
+                )
+                left_pos_world, left_quat_world = self._controller.bullet_base_pose_to_world_pose(
+                    (left_pos, left_quat)
+                )
+                print("left controller gripper pos: ", left_pos_world, "left controller gripper quat: ", left_quat_world)
+                print("right controller gripper pos: ", right_pos_world, "right controller gripper quat: ", right_quat_world)
 
             input_1 = self._make_input(action[:7], self._right_hand_quat)
             if self._agent_type == "Sawyer":
@@ -1620,7 +1629,7 @@ class FurnitureEnv(metaclass=EnvMeta):
         """
         if config.furniture_name is not None:
             config.furniture_id = furniture_name2id[config.furniture_name]
-        ob = self.reset(config.furniture_id, config.background)
+        ob = self.reset(config.furniture_id, config.background) # TODO
 
         if config.render:
             self.render()
@@ -1635,7 +1644,7 @@ class FurnitureEnv(metaclass=EnvMeta):
             glfw.set_key_callback(self._viewer.window, self.key_callback)
 
         cursor_idx = 0
-        flag = [-1, -1]
+        flag = [-1, -1] # TODO
         t = 0
         while True:
             if config.unity:

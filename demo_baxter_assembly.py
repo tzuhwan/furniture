@@ -61,6 +61,7 @@ def main(args):
 
     # run assembly of furniture
     env.run_controller(args)
+    # env.run_manual(args)
 
     # close the environment instance
     print("Closing FurnitureBaxterAssemblyEnv")

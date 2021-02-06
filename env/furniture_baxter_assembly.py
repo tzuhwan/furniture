@@ -44,18 +44,82 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         align_pos_left = [0.82273044, 0.29672234, 0.00181328] # ("left", "+Z", align_pos_left)
         align_pos_right = [0.82051034, -0.24336258, 0.08321501] # ("right", "+Z", align_pos_right)
 
+        ### 6DPoseController
+        single_controller_sequence = [("Baxter6DPoseController", ("right", goal_pos_right, goal_quat_right))]
+        
+        ### sequence for testing all behaviors
+        test_controller_sequence = [
+            ("Baxter6DPoseController", ("right", goal_pos_right, goal_quat_right)),
+            ("close-gripper", "right"),
+            ("BaxterAlignmentController", ("left", "+Z", align_pos_left)),
+            ("close-gripper", "left"),
+            ("open-gripper", "right"),
+            ("Baxter3DPositionController", ("left", goal_pos_left, goal_quat_nonsense)),
+            ("BaxterRotationController", ("right", 6.283))
+        ]
+
+        ### sequence for assembling swivel chair
+        swivelchair_poleprep_pos_right = [0.55756265, -0.1, -0.11673727]
+        swivelchair_poleprep_quat_right = [-0.58808523, 0.53074937, 0.46539465, 0.39480208]
+        swivelchair_polepick_pos_right = [0.53, -0.00189214, -0.11673727]
+        swivelchair_polepick_quat_right = [-0.58808523, 0.53074937, 0.46539465, 0.39480208]
+        swivelchair_polepost_pos_right = [0.65, -0.12, -0.04]
+        swivelchair_polepost_quat_right = [-0.58846033, 0.52953778, 0.46733307, 0.39357843]
+        swivelchair_polecnct_pos_right = [0.65, -0.12, -0.115]
+        swivelchair_polecnct_quat_right = [-0.58846033, 0.52953778, 0.46733307, 0.39357843]
+
+        swivelchair_seatprep_pos_left = [0.45077123, 0.32370803, 0.25]
+        swivelchair_seatprep_quat_left = [0.68661902, -0.72083896, -0.08676259, 0.03765338]
+        swivelchair_seatpick_pos_left = [0.45077123, 0.32370803, 0.13]
+        swivelchair_seatpick_quat_left = [0.68661902, -0.72083896, -0.08676259, 0.03765338]
+
+        # WORKING TO HERE!
+        # swivelchair_seatcnct_pos_left = [0.59742394, 0.08848166, 0.64171694]
+        # swivelchair_seatcnct_quat_left = [0.71337652, -0.68281197, -0.14455587, 0.06297114]
+        swivelchair_cnctprep_pos_left = [0.45077123, 0.32370803, 0.25]
+        swivelchair_cnctprep_quat_left = [0.68661902, -0.72083896, -0.08676259, 0.03765338]
+        swivelchair_seatcnct_pos_left = [0.5916167, -0.00193475, 0.51251066]
+        swivelchair_seatcnct_quat_left = [0.68599818, -0.72016698, -0.09497703, 0.04177788]
+        
+        # NOT TESTED PAST HERE!
+        # swivelchair_polecnct_pos_right = [0.63654174, -0.02104541, 0.10575236]
+        # swivelchair_polecnct_quat_right = [-0.54869579, 0.48478159, 0.51220443, 0.44896143]
+        # swivelchair_discnct_pos_right = [ 0.63490812, -0.16964056, 0.10981197]
+        # swivelchair_discnct_quat_right = [-0.54678024, 0.48206306, 0.51576176, 0.45015151]
+        # swivelchair_polecnct_pos_left = [0.8308485, 0.1545475, 0.38950249]
+        # swivelchair_polecnct_quat_left = [-0.69117156, 0.72160448, 0.03520728, 0.01814674]
+        # swivelchair_success_pos_left = [0.85036798, 0.17084147, 0.35184735]
+        # swivelchair_success_quat_left = [-0.69080326, 0.72215678, 0.02381625, 0.0267061]
+        
+        swivelchair_cnctpolebase_sequence = [
+            ("Baxter6DPoseController", ("right", swivelchair_poleprep_pos_right, swivelchair_poleprep_quat_right)),
+            ("Baxter6DPoseController", ("right", swivelchair_polepick_pos_right, swivelchair_polepick_quat_right)),
+            ("close-gripper", "right"),
+            ("Baxter6DPoseController", ("right", swivelchair_polepost_pos_right, swivelchair_polepost_quat_right)),
+            ("Baxter6DPoseController", ("right", swivelchair_polecnct_pos_right, swivelchair_polecnct_quat_right)),
+            ("connect", "")
+        ]
+        swivelchair_pickseat_sequence = [
+            ("Baxter6DPoseController", ("left", swivelchair_seatprep_pos_left, swivelchair_seatprep_quat_left)),
+            ("Baxter6DPoseController", ("left", swivelchair_seatpick_pos_left, swivelchair_seatpick_quat_left)),
+            ("close-gripper", "left"),
+            ("Baxter6DPoseController", ("left", swivelchair_cnctprep_pos_left, swivelchair_cnctprep_quat_left)),
+            ("Baxter6DPoseController", ("left", swivelchair_seatcnct_pos_left, swivelchair_seatcnct_quat_left))
+        ]
+        # ADDITIONAL WAYPOINTS NOT TESTED YET
+        #     ("Baxter6DPoseController", ("right", swivelchair_polecnct_pos_right, swivelchair_polecnct_quat_right)),
+        #     ("connect", ""),
+        #     ("open-gripper", "right"),
+        #     ("Baxter6DPoseController", ("right", swivelchair_discnct_pos_right, swivelchair_discnct_quat_right)),
+        #     ("Baxter6DPoseController", ("left", swivelchair_polecnct_pos_left, swivelchair_polecnct_quat_left)),
+        #     ("connect", ""),
+        #     ("Baxter6DPoseController", ("left", swivelchair_success_pos_left, swivelchair_success_quat_left)),
+        #     ("open-gripper", "left")
+        # ]
+
         # initialize sequence of actions, where each action is
         # (action/controller, params) tuple
-        self._action_sequence = [("Baxter6DPoseController", ("right", goal_pos_right, goal_quat_right))]
-        # [
-        #     ("Baxter6DPoseController", ("right", goal_pos_right, goal_quat_right)),
-        #     ("close-gripper", "right"),
-        #     ("BaxterAlignmentController", ("left", "+Z", align_pos_left)),
-        #     ("close-gripper", "left"),
-        #     ("open-gripper", "right"),
-        #     ("Baxter3DPositionController", ("left", goal_pos_left, goal_quat_nonsense)),
-        #     ("BaxterRotationController", ("right", 6.283))
-        # ]
+        self._action_sequence = test_controller_sequence
 
     """
     Takes a simulation step with @a and computes reward.
@@ -80,6 +144,12 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         if config.furniture_name is not None:
             config.furniture_id = furniture_name2id[config.furniture_name]
         ob = self.reset(config.furniture_id, config.background)
+        # reset swivel base
+        print("reseting base pose")
+        self._set_qpos('1_chair_base',
+            [-0.1, 0.0, 0.0144],
+            [0.996917333733128, 0.07845909572784494, 0.0, 0.0]
+        )
 
         if config.render:
             self.render()
@@ -205,6 +275,12 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         time.sleep(2)
         print("FurnitureBaxterAssemblyEnv returning")
 
+        # from env.controllers import BaxterIKController
+        # self._controller = BaxterIKController(
+        #     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
+        #     robot_jpos_getter=self._robot_jpos_getter,
+        # )
+
         return
 
     """
@@ -265,6 +341,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     if self._debug:
                         print('try connect')
                     result = self._try_connect(self.sim.model.body_id2name(body_id))
+                    print("connection result: ", result)
                     if result:
                         return
                     break
