@@ -1,0 +1,27 @@
+{
+    "assumptions": 
+        "grasp pose is on the object part, approach direction along z+ axis, two gripper fingers connection is y axis; pre-grasp pose will be backward along z axis by a certain step",
+    "swivel_chair": {
+        "column" : {
+            "need_rotation": true,
+            "grasp_pose": {
+                "grasp_pose0/1": "can rotate about z axis"
+            },
+            "helper_pose": {
+                "helper_pose0/1": "can rotate about x axis; can interpolate position between 0 and 1"
+            }
+        },
+        "base" : {
+            "need_rotation": false,
+            "grasp_pose": {
+                "base_grasp_pose0/1-8/9": "can be z- direction; can interpolate position between 2n, 2n+1"
+            }
+        },
+        "seat" : {
+            "need_rotation": false,
+            "grasp_pose": {
+                "seat_grasp_pose0/1-12/13": "can interpolate position between 2n, 2n+1"
+            }
+        }
+    }
+}

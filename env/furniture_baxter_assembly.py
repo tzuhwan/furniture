@@ -119,7 +119,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
 
         # initialize sequence of actions, where each action is
         # (action/controller, params) tuple
-        self._action_sequence = test_controller_sequence
+        self._action_sequence = swivelchair_cnctpolebase_sequence
 
     """
     Takes a simulation step with @a and computes reward.
