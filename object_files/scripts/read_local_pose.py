@@ -1,4 +1,5 @@
-from vrep_newlib import sim
+from .vrep_newlib import sim # need relative path to call from furniture_baxter_assembly_auto
+# from vrep_newlib import sim
 from scipy.spatial.transform import Rotation as R
 from scipy.spatial.transform import Slerp
 import math
