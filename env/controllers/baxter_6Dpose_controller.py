@@ -59,6 +59,9 @@ class Baxter6DPoseController(BaxterIKController):
 		self.move_speed = 0.025
 		self.rotate_speed = 0.05
 
+		# set arm speed, which controls how fast the arm performs the commands
+		self.arm_step = 2
+
 		# initialize control arm
 		self.control_arm = ""
 
@@ -113,7 +116,7 @@ class Baxter6DPoseController(BaxterIKController):
 
 		# compute velocities based on error
 		for i, delta in enumerate(deltas):
-			velocities[i] = -2 * delta # TODO what does the 2 do? scaling factor?
+			velocities[i] = -self.arm_step * delta
 		
 		# clip velocities
 		velocities = self.clip_joint_velocities(velocities)
@@ -129,7 +132,7 @@ class Baxter6DPoseController(BaxterIKController):
 	def set_goal(self, control_arm, goal_pos, goal_quat):
 		# check for valid arm
 		if not ((control_arm == "left") or (control_arm == "right")):
-			print("Baxter6DPoseController: Arm %s not recognized" % arm)
+			print("Baxter6DPoseController: Arm %s not recognized" % control_arm)
 			raise NameError
 			return
 
@@ -201,6 +204,17 @@ class Baxter6DPoseController(BaxterIKController):
 	"""
 	def get_control_arm(self):
 		return self.control_arm
+
+	"""
+	Sets the motion and rotation speeds for the controller.
+	"""
+	def set_motion_speeds(self, move_speed=None, rotate_speed=None):
+		if move_speed is not None:
+			self.move_speed = move_speed
+		if rotate_speed is not None:
+			self.rotate_speed = rotate_speed
+		print("Baxter6DPoseController: Set new motion speeds, move_speed=%f, rotate_speed=%f" % (self.move_speed, self.rotate_speed))
+		return
 
 	#################################################
 	### POTENTIAL FIELD AND CONTROL LAW FUNCTIONS ###
