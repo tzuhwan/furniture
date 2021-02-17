@@ -218,7 +218,11 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 target_hand_pose_mat[:3,3] += translation
                 # target_hand_pose_mat[:3,:3] = T.pose2mat((new_pos,new_quat))[:3, :3].dot(target_hand_pose_mat[:3,:3])
                 target_hand_pose_mat[:3, :3] = rotation.dot(target_hand_pose_mat[:3, :3])
+                pre_target_hand_pose_mat = target_hand_pose_mat.copy()
+                pre_target_hand_pose_mat[:3, -1] -= self.grasp_offset * pre_target_hand_pose_mat[:3, 2]
+                pre_target_hand_pose = T.mat2pose(pre_target_hand_pose_mat)
                 target_hand_pose = T.mat2pose(target_hand_pose_mat)
+                self._action_sequence.append(("Baxter6DPoseController", (action[1], pre_target_hand_pose[0], pre_target_hand_pose[1])))
                 self._action_sequence.append(("Baxter6DPoseController", (action[1], target_hand_pose[0], target_hand_pose[1])))
                 self._action_sequence.append(("connect", " "))
             self.one_action(self._action_sequence)
