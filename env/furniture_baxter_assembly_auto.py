@@ -41,7 +41,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         # fixed offsets related to grasping
         self.hold_offset = 0.02  # make sure the gripper covers the object with some distance and object won't slip out
         self.grasp_offset = 0.05 + self.hold_offset
-        self.lift_offset = 0.005 # 0.01 is even hard for some cases
+        self.lift_offset = 0.1 # 0.01 is even hard for some cases
 
         ### sequence for assembling swivel chair
         # swivelchair_poleprep_pos_right = [0.55756265, -0.1, -0.11673727]
@@ -112,6 +112,10 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
     def run_controller(self, config):
         ### SETUP ###
         # sets up environment and robot
+
+        # initialize gripper states (both open)
+        self.gripper_grabs = [-1, -1]
+
         if config.furniture_name is not None:
             config.furniture_id = furniture_name2id[config.furniture_name]
         ob = self.reset(config.furniture_id, config.background)
@@ -138,9 +142,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         if config.furniture_id == 7: # swivel_chair:
             self._actions = [
                 ('grasp', 'right', '2_chair_column'),
-                # ('connect', 'right', '2_chair_column', '1_chair_base'),  # assumption: has grasped first part 
+                ('connect', 'right', 'column-base,conn_site1', 'base-column,conn_site1'),  # assumption: has grasped first part
                 # ('grasp', 'left', '3_chair_seat'),
-                # ('connect', 'left', '3_chair_seat', '2_chair_column')  # todo: change to screw for rotation operation
+                # ('connect', 'left', 'seat-column,conn_site2', 'column-seat,conn_site2')  # todo: change to screw for rotation operation
             ]
             n_grasp_pose = { # should be consistent with CoppeliaSim labels
                 'base': 10,
@@ -149,9 +153,13 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             }
         
         self._action_sequence = []
-        
-        
+
+        from util.video_recorder import VideoRecorder
+        self.vr = VideoRecorder()
+        self.vr.add(self.render('rgb_array'))
+
         for action in self._actions:
+            self._action_sequence = []
             if action[0] == 'grasp':
                 # 1. object part grasp pose transformed to workspace coordinate
                 part = action[2]
@@ -162,8 +170,8 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 ws_grasp_pose_mat = [T.pose_in_A_to_pose_in_B(grasp_pose_mat0, part_pose_mat) for grasp_pose_mat0 in local_grasp_pose_mat]
                 found_downwards_grasppose = False
                 for obj_grasp_mat in ws_grasp_pose_mat:
-                    if obj_grasp_mat[2, 3] < 0:  # drop poses that are too low
-                        continue
+                    # if obj_grasp_mat[2, 3] < 0:  # drop poses that are too low
+                    #     continue
                     if obj_grasp_mat[2, 2] < -0.8:  # select grasp poses that has z axis pointing downwards
                         found_downwards_grasppose = True
                         break
@@ -186,26 +194,53 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 self._action_sequence.append(("close-gripper", action[1]))
                 self._action_sequence.append(("Baxter6DPoseController", (action[1], post_grasp_pose[0], post_grasp_pose[1])))
             elif action[0] == 'connect':
-                pass
-                
+                m_site = action[2]
+                t_site = action[3]
+                target_site_qpos = self._site_xpos_xquat(t_site)
+                moving_site_qpos = self._site_xpos_xquat(m_site)
 
-        from util.video_recorder import VideoRecorder
-        vr = VideoRecorder()
-        vr.add(self.render('rgb_array'))
+                base_pos_in_world = self.sim.data.get_body_xpos("base")
+                base_rot_in_world = self.sim.data.get_body_xmat("base").reshape((3, 3))
+                base_pose_in_world = T.make_pose(base_pos_in_world, base_rot_in_world)
+                world_pose_in_base = T.pose_inv(base_pose_in_world)
+                target_site_qpos_mat = T.pose_in_A_to_pose_in_B(T.pose2mat((target_site_qpos[:3],target_site_qpos[3:])), world_pose_in_base)
+                moving_site_qpos_mat = T.pose_in_A_to_pose_in_B(T.pose2mat((moving_site_qpos[:3],moving_site_qpos[3:])), world_pose_in_base)
 
-        # initialize gripper states (both open)
-        gripper_grabs = [-1, -1]
+                # translation = target_site_qpos[:3] - moving_site_qpos[:3]
+                # m_site_id = self.sim.model.site_name2id(m_site)
+                # m_body_id = self.sim.model.site_bodyid[m_site_id]
+                # m_body_name = self.sim.model.body_names[m_body_id]
+                # new_pos, new_quat = T.transform_to_target_quat(moving_site_qpos, self._get_qpos(m_body_name), target_site_qpos[3:])
+                translation = target_site_qpos_mat[:3,3]-moving_site_qpos_mat[:3,3]
+                rotation = (target_site_qpos_mat[:3,:3]).transpose().dot(moving_site_qpos_mat[:3,:3])
+                hand_pose_mat = self.pose_in_base_from_name('left_gripper_base') if action[1] == 'left' else self.pose_in_base_from_name('right_gripper_base')
+                target_hand_pose_mat = hand_pose_mat.copy()
+                target_hand_pose_mat[:3,3] += translation
+                # target_hand_pose_mat[:3,:3] = T.pose2mat((new_pos,new_quat))[:3, :3].dot(target_hand_pose_mat[:3,:3])
+                target_hand_pose_mat[:3, :3] = rotation.dot(target_hand_pose_mat[:3, :3])
+                target_hand_pose = T.mat2pose(target_hand_pose_mat)
+                self._action_sequence.append(("Baxter6DPoseController", (action[1], target_hand_pose[0], target_hand_pose[1])))
+                self._action_sequence.append(("connect", " "))
+            self.one_action(self._action_sequence)
 
+        if config.record_video:
+            self.vr.save_video('FurnitureBaxterAssemblyEnv_test2.mp4')
+        time.sleep(2)
+        print("FurnitureBaxterAssemblyEnv returning")
+
+        return
+
+    def one_action(self, _action_sequence):
         ### ACTION SEQUENCE ###
         # start action sequence
         print("FurnitureBaxterAssemblyEnv: Starting action sequence")
 
         # perform action sequence
-        for i in range(len(self._action_sequence)):
-            print("FurnitureBaxterAssemblyEnv: Starting action %d of %d" % (i+1, len(self._action_sequence)))
-            
+        for i in range(len(_action_sequence)):
+            print("FurnitureBaxterAssemblyEnv: Starting action %d of %d" % (i+1, len(_action_sequence)))
+
             # set up action
-            action = self._action_sequence[i]
+            action = _action_sequence[i]
             run = ""
             if action[0] == "Baxter6DPoseController":
                 control_arm, goal_pos, goal_quat = action[1]
@@ -246,9 +281,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             elif action[0] == "close-gripper":
                 control_arm = action[1]
                 if control_arm == "left":
-                    gripper_grabs[1] = 1
+                    self.gripper_grabs[1] = 1
                 elif control_arm == "right":
-                    gripper_grabs[0] = 1
+                    self.gripper_grabs[0] = 1
                 else:
                     print("FurnitureBaxterAssemblyEnv: unrecognized arm %s" % control_arm)
                     raise NameError
@@ -256,9 +291,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             elif action[0] == "open-gripper":
                 control_arm = action[1]
                 if control_arm == "left":
-                    gripper_grabs[1] = -1
+                    self.gripper_grabs[1] = -1
                 elif control_arm == "right":
-                    gripper_grabs[0] = -1
+                    self.gripper_grabs[0] = -1
                 else:
                     print("FurnitureBaxterAssemblyEnv: unrecognized arm %s" % control_arm)
                     raise NameError
@@ -279,18 +314,18 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     # compute controller update
                     velocities = self._controller.get_control()
                     # perform controller command
-                    self.perform_command(velocities, gripper_grabs, True)
+                    self.perform_command(velocities, self.gripper_grabs, True)
                     # render
-                    vr.add(self.render('rgb_array'))
+                    self.vr.add(self.render('rgb_array'))
             elif run == "gripper":
                 # set flag so unity will update
                 self._unity_updated = False
                 # set velocities to 0 for arm joints
                 velocities = np.zeros(14)
                 # perform command
-                self.perform_command(velocities, gripper_grabs, False)
+                self.perform_command(velocities, self.gripper_grabs, False)
                 # render
-                vr.add(self.render('rgb_array'))
+                self.vr.add(self.render('rgb_array'))
                 # sleep
                 time.sleep(2)
             else: # run == "connect":
@@ -299,18 +334,12 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 # perform connection
                 self.perform_connection() # TODO TODO TODO IMPLEMENT
                 # render
-                vr.add(self.render('rgb_array'))
+                self.vr.add(self.render('rgb_array'))
 
             print("FurnitureBaxterAssemblyEnv: finished action %s" % action[0])
 
         print("FurnitureBaxterAssemblyEnv: Goal met!")
         time.sleep(2)
-        if config.record_video:
-            vr.save_video('FurnitureBaxterAssemblyEnv_test2.mp4')
-        time.sleep(2)
-        print("FurnitureBaxterAssemblyEnv returning")
-
-        return
 
     """
     Performs the given controller command.
