@@ -50,7 +50,7 @@ class Baxter6DPoseController(BaxterIKController):
 		self.max_potential = 100
 
 		# potential threshold (potential less than this means no update will be performed)
-		self.potential_threshold = 0.0005
+		self.potential_threshold = 0.0003 # 0.0005
 
 		# controller objective met flag
 		self.objective_met = False
@@ -113,7 +113,7 @@ class Baxter6DPoseController(BaxterIKController):
 
 		# compute velocities based on error
 		for i, delta in enumerate(deltas):
-			velocities[i] = -2 * delta # TODO what does the 2 do? scaling factor?
+			velocities[i] = -3 * delta # TODO what does the 2 do? scaling factor?
 		
 		# clip velocities
 		velocities = self.clip_joint_velocities(velocities)
@@ -219,13 +219,13 @@ class Baxter6DPoseController(BaxterIKController):
 		# compute distance to goal
 		dist_pos = np.linalg.norm(diff[:3])
 		dist_quat = Quaternion.distance(Quaternion(self.curr_quat), Quaternion(self.goal_quat))
+		dist_quat = np.min([dist_quat, np.pi - dist_quat])
 		dist = dist_pos + dist_quat
 
 		# compute potential
 		pot = 0.5 * dist * dist
 		print("Baxter6DPoseController: potential %f" % pot)
-		if self.verbose:
-			print("Baxter6DPoseController: position distance %f, rotation distance %f" % (dist_pos, dist_quat))
+		print("Baxter6DPoseController: position distance %f, rotation distance %f" % (dist_pos, dist_quat))
 		return min(pot, self.max_potential)
 
 	"""
