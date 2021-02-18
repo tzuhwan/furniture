@@ -13,6 +13,7 @@ import env.models
 from env.furniture_baxter import FurnitureBaxterEnv
 import env.transform_utils as T
 from env.controllers import Baxter6DPoseController
+from env.controllers import BaxterObject6DPoseController
 from env.controllers import Baxter3DPositionController
 from env.controllers import BaxterAlignmentController
 from env.controllers import BaxterRotationController
@@ -45,7 +46,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         align_pos_right = [0.82051034, -0.24336258, 0.08321501] # ("right", "+Z", align_pos_right)
 
         ### 6DPoseController
-        single_controller_sequence = [("Baxter6DPoseController", ("right", goal_pos_right, goal_quat_right))]
+        pose_controller_sequence = [("Baxter6DPoseController", ("right", goal_pos_right, goal_quat_right))]
         
         ### sequence for testing all behaviors
         test_controller_sequence = [
@@ -63,8 +64,8 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         swivelchair_poleprep_quat_right = [-0.58808523, 0.53074937, 0.46539465, 0.39480208]
         swivelchair_polepick_pos_right = [0.53, -0.00189214, -0.11673727]
         swivelchair_polepick_quat_right = [-0.58808523, 0.53074937, 0.46539465, 0.39480208]
-        swivelchair_polepost_pos_right = [0.65, -0.12, -0.04]
-        swivelchair_polepost_quat_right = [-0.58846033, 0.52953778, 0.46733307, 0.39357843]
+        swivelchair_polepost_pos_right = [0.53, 0.04, -0.04]#[0.65, -0.12, -0.04]
+        swivelchair_polepost_quat_right = [-0.05176196, 0.06610491, 0.77816441, 0.62242348]#[-0.58846033, 0.52953778, 0.46733307, 0.39357843]
         swivelchair_polecnct_pos_right = [0.65, -0.12, -0.115]
         swivelchair_polecnct_quat_right = [-0.58846033, 0.52953778, 0.46733307, 0.39357843]
 
@@ -76,50 +77,32 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         # WORKING TO HERE!
         # swivelchair_seatcnct_pos_left = [0.59742394, 0.08848166, 0.64171694]
         # swivelchair_seatcnct_quat_left = [0.71337652, -0.68281197, -0.14455587, 0.06297114]
-        swivelchair_cnctprep_pos_left = [0.45077123, 0.32370803, 0.25]
-        swivelchair_cnctprep_quat_left = [0.68661902, -0.72083896, -0.08676259, 0.03765338]
-        swivelchair_seatcnct_pos_left = [0.5916167, -0.00193475, 0.51251066]
-        swivelchair_seatcnct_quat_left = [0.68599818, -0.72016698, -0.09497703, 0.04177788]
-        
-        # NOT TESTED PAST HERE!
-        # swivelchair_polecnct_pos_right = [0.63654174, -0.02104541, 0.10575236]
-        # swivelchair_polecnct_quat_right = [-0.54869579, 0.48478159, 0.51220443, 0.44896143]
-        # swivelchair_discnct_pos_right = [ 0.63490812, -0.16964056, 0.10981197]
-        # swivelchair_discnct_quat_right = [-0.54678024, 0.48206306, 0.51576176, 0.45015151]
-        # swivelchair_polecnct_pos_left = [0.8308485, 0.1545475, 0.38950249]
-        # swivelchair_polecnct_quat_left = [-0.69117156, 0.72160448, 0.03520728, 0.01814674]
-        # swivelchair_success_pos_left = [0.85036798, 0.17084147, 0.35184735]
-        # swivelchair_success_quat_left = [-0.69080326, 0.72215678, 0.02381625, 0.0267061]
+        swivelchair_seatpost_pos_left = [0.4, 0.1, -0.5]
+        swivelchair_seatpost_quat_left = [-0.73133093, -0.00037086, -0.00036539, 0.68202257]
+        # swivelchair_cnctprep_pos_left = [0.45077123, 0.32370803, 0.25]
+        # swivelchair_cnctprep_quat_left = [0.68661902, -0.72083896, -0.08676259, 0.03765338]
+        # swivelchair_seatcnct_pos_left = [0.5916167, -0.00193475, 0.51251066]
+        # swivelchair_seatcnct_quat_left = [0.68599818, -0.72016698, -0.09497703, 0.04177788]
         
         swivelchair_cnctpolebase_sequence = [
             ("Baxter6DPoseController", ("right", swivelchair_poleprep_pos_right, swivelchair_poleprep_quat_right)),
             ("Baxter6DPoseController", ("right", swivelchair_polepick_pos_right, swivelchair_polepick_quat_right)),
             ("close-gripper", "right"),
-            ("Baxter6DPoseController", ("right", swivelchair_polepost_pos_right, swivelchair_polepost_quat_right)),
-            ("Baxter6DPoseController", ("right", swivelchair_polecnct_pos_right, swivelchair_polecnct_quat_right)),
+            ("BaxterObject6DPoseController", ("right", '2_chair_column', swivelchair_polepost_pos_right, swivelchair_polepost_quat_right)),
+            ("BaxterObject6DPoseController", ("right", '2_chair_column', swivelchair_polecnct_pos_right, swivelchair_polecnct_quat_right)),
             ("connect", "")
         ]
         swivelchair_pickseat_sequence = [
             ("Baxter6DPoseController", ("left", swivelchair_seatprep_pos_left, swivelchair_seatprep_quat_left)),
             ("Baxter6DPoseController", ("left", swivelchair_seatpick_pos_left, swivelchair_seatpick_quat_left)),
             ("close-gripper", "left"),
-            ("Baxter6DPoseController", ("left", swivelchair_cnctprep_pos_left, swivelchair_cnctprep_quat_left)),
-            ("Baxter6DPoseController", ("left", swivelchair_seatcnct_pos_left, swivelchair_seatcnct_quat_left))
+            # ("Baxter6DPoseController", ("left", swivelchair_seatprep_pos_left, swivelchair_seatprep_quat_left), (0.1, None))
+            ("BaxterObject6DPoseController", ("left", "3_chair_seat", swivelchair_seatpost_pos_left, swivelchair_seatpost_quat_left))
         ]
-        # ADDITIONAL WAYPOINTS NOT TESTED YET
-        #     ("Baxter6DPoseController", ("right", swivelchair_polecnct_pos_right, swivelchair_polecnct_quat_right)),
-        #     ("connect", ""),
-        #     ("open-gripper", "right"),
-        #     ("Baxter6DPoseController", ("right", swivelchair_discnct_pos_right, swivelchair_discnct_quat_right)),
-        #     ("Baxter6DPoseController", ("left", swivelchair_polecnct_pos_left, swivelchair_polecnct_quat_left)),
-        #     ("connect", ""),
-        #     ("Baxter6DPoseController", ("left", swivelchair_success_pos_left, swivelchair_success_quat_left)),
-        #     ("open-gripper", "left")
-        # ]
 
         # initialize sequence of actions, where each action is
         # (action/controller, params) tuple
-        self._action_sequence = test_controller_sequence
+        self._action_sequence = swivelchair_cnctpolebase_sequence# swivelchair_pickseat_sequence
 
     """
     Takes a simulation step with @a and computes reward.
@@ -182,6 +165,16 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 )
                 self._controller.set_goal(control_arm, goal_pos, goal_quat)
                 run = "controller"
+            elif action[0] == "BaxterObject6DPoseController":
+                control_arm, object_name, object_goal_pos, object_goal_quat = action[1]
+                self._controller = BaxterObject6DPoseController(
+                    bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
+                    robot_jpos_getter=self._robot_jpos_getter,
+                    objects_in_scene=self._object_names,
+                    verbose=False # TODO
+                )
+                self._controller.set_goal(control_arm, object_name, object_goal_pos, object_goal_quat)
+                run = "object-controller"
             elif action[0] == "Baxter3DPositionController":
                 control_arm, goal_pos, goal_quat = action[1]
                 self._controller = Baxter3DPositionController(
@@ -230,22 +223,26 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     raise NameError
                 run = "gripper"
             elif action[0] == "connect":
-                # TODO TODO TODO IMPLEMENT
                 run = "connect"
             else:
                 print("FurnitureBaxterAssemblyEnv: unrecognized action %s" % action[0])
                 raise NameError
 
             # perform action
-            if run == "controller":
+            if (run == "controller") or (run == "object-controller"):
                 # run controller
                 while not self._controller.objective_met:
                     # set flag so unity will update
                     self._unity_updated = False
+                    # if object controller, set sim states
+                    if run == "object-controller":
+                        obj = self._controller.get_object_name()
+                        obj_pose_matrix = self.pose_in_base_from_name(obj)
+                        self._controller.set_object_pose(obj, obj_pose_matrix)
                     # compute controller update
                     velocities = self._controller.get_control()
                     # perform controller command
-                    self.perform_command(velocities, gripper_grabs, True)
+                    self.perform_command(velocities, gripper_grabs, True, (run == "object-controller"))
                     # render
                     vr.add(self.render('rgb_array'))
             elif run == "gripper":
@@ -263,7 +260,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 # set flag so unity will update
                 self._unity_updated = False
                 # perform connection
-                self.perform_connection() # TODO TODO TODO IMPLEMENT
+                self.perform_connection()
                 # render
                 vr.add(self.render('rgb_array'))
 
@@ -292,8 +289,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
     @param gripper_grabs, flags indicating whether [right, left] grippers have closed
         where 1 means gripper is closed and -1 means gripper is open
     @param controller_velocities, a boolean indicating whether to update velocities using a controller
+    @param object_controller, a boolean indicating whether the controller being run acts on an object
     """
-    def perform_command(self, velocities, gripper_grabs, controller_velocities=True):
+    def perform_command(self, velocities, gripper_grabs, controller_velocities=True, object_controller=False):
         # set up low action
         low_action = np.concatenate([velocities, gripper_grabs])
 
@@ -304,6 +302,10 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
 
                 if i + 1 < self._action_repeat:
                     if controller_velocities:
+                        if object_controller:
+                            obj = self._controller.get_object_name()
+                            obj_pose_matrix = self.pose_in_base_from_name(obj)
+                            self._controller.set_object_pose(obj, obj_pose_matrix)
                         velocities = self._controller.get_control()
                     low_action = np.concatenate([velocities, gripper_grabs])
                     ctrl = self._setup_action(low_action)
