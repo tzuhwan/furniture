@@ -216,6 +216,14 @@ class Baxter6DPoseController(BaxterIKController):
 		print("Baxter6DPoseController: Set new motion speeds, move_speed=%f, rotate_speed=%f" % (self.move_speed, self.rotate_speed))
 		return
 
+	"""
+	Sets the arm speed for the controller.
+	"""
+	def set_arm_speed(self, arm_speed):
+		self.arm_step = arm_speed
+		print("Baxter6DPoseController: Set new arm speed")
+		return
+
 	#################################################
 	### POTENTIAL FIELD AND CONTROL LAW FUNCTIONS ###
 	#################################################

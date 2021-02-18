@@ -213,7 +213,15 @@ class Baxter3DPositionController(BaxterIKController):
 			self.move_speed = move_speed
 		if rotate_speed is not None:
 			self.rotate_speed = rotate_speed
-		print("Baxter6DPoseController: Set new motion speeds, move_speed=%f, rotate_speed=%f" % (self.move_speed, self.rotate_speed))
+		print("Baxter3DPositionController: Set new motion speeds, move_speed=%f, rotate_speed=%f" % (self.move_speed, self.rotate_speed))
+		return
+
+	"""
+	Sets the arm speed for the controller.
+	"""
+	def set_arm_speed(self, arm_speed):
+		self.arm_step = arm_speed
+		print("Baxter3DPositionController: Set new arm speed")
 		return
 
 	#################################################
