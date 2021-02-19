@@ -41,7 +41,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         # fixed offsets related to grasping
         self.hold_offset = 0.02  # make sure the gripper covers the object with some distance and object won't slip out
         self.grasp_offset = 0.05 + self.hold_offset
-        self.lift_offset = 0.1 # 0.01 is even hard for some cases
+        self.lift_offset = 0.2 # 0.01 is even hard for some cases
 
         ### sequence for assembling swivel chair
         # swivelchair_poleprep_pos_right = [0.55756265, -0.1, -0.11673727]
@@ -130,12 +130,21 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 [0, 0, 0.072],
                 [1.0, 0.0, 0.0, 0.0]
             )
+            self._set_qpos('3_chair_seat',
+                           [0.23653631, -0.08022969, 0.14596923],
+                           [1.0, 0.0, 0.0, 0.0]
+            )
         
         left_gripper_pose = (self.pose_in_base_from_name('l_gripper_l_finger_tip') + self.pose_in_base_from_name('l_gripper_r_finger_tip')) / 2  # orientations are the same
         self.left_obj2eef_mat = T.pose_inv(left_gripper_pose).dot(self.pose_in_base_from_name('left_gripper_base'))
         right_gripper_pose = (self.pose_in_base_from_name('r_gripper_l_finger_tip') + self.pose_in_base_from_name('r_gripper_r_finger_tip')) / 2  # orientations are the same
         self.right_obj2eef_mat = T.pose_inv(right_gripper_pose).dot(self.pose_in_base_from_name('right_gripper_base'))
-        
+
+        base_pos_in_world = self.sim.data.get_body_xpos("base")
+        base_rot_in_world = self.sim.data.get_body_xmat("base").reshape((3, 3))
+        base_pose_in_world = T.make_pose(base_pos_in_world, base_rot_in_world)
+        self.world_pose_in_base = T.pose_inv(base_pose_in_world)
+
         if config.render:
             self.render()
         
@@ -143,89 +152,26 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             self._actions = [
                 ('grasp', 'right', '2_chair_column'),
                 ('connect', 'right', 'column-base,conn_site1', 'base-column,conn_site1'),  # assumption: has grasped first part
-                # ('grasp', 'left', '3_chair_seat'),
-                # ('connect', 'left', 'seat-column,conn_site2', 'column-seat,conn_site2')  # todo: change to screw for rotation operation
+                ('grasp', 'left', '3_chair_seat'),
+                ('connect', 'left', 'seat-column,conn_site2', 'column-seat,conn_site2')  # todo: change to screw for rotation operation
             ]
-            n_grasp_pose = { # should be consistent with CoppeliaSim labels
+            self.n_grasp_pose = { # should be consistent with CoppeliaSim labels
                 'base': 10,
                 'column': 2,
                 'seat': 14
             }
-        
-        self._action_sequence = []
 
         from util.video_recorder import VideoRecorder
         self.vr = VideoRecorder()
         self.vr.add(self.render('rgb_array'))
 
         for action in self._actions:
-            self._action_sequence = []
-            if action[0] == 'grasp':
-                # 1. object part grasp pose transformed to workspace coordinate
-                part = action[2]
-                partname = part[part.rfind('_')+1:]
-                local_grasp_pose = [self.pose_reader.read_object_pose(partname + '_grasp_pose_' + str(i), part) for i in range(n_grasp_pose[partname])]
-                local_grasp_pose_mat = [T.pose2mat((pose[:3], pose[3:])) for pose in local_grasp_pose]
-                part_pose_mat = self.pose_in_base_from_name(part)
-                ws_grasp_pose_mat = [T.pose_in_A_to_pose_in_B(grasp_pose_mat0, part_pose_mat) for grasp_pose_mat0 in local_grasp_pose_mat]
-                found_downwards_grasppose = False
-                for obj_grasp_mat in ws_grasp_pose_mat:
-                    # if obj_grasp_mat[2, 3] < 0:  # drop poses that are too low
-                    #     continue
-                    if obj_grasp_mat[2, 2] < -0.8:  # select grasp poses that has z axis pointing downwards
-                        found_downwards_grasppose = True
-                        break
-                if not found_downwards_grasppose:
-                    print('cannot find downwards grasppose')
-                
-                # 2. plus offset to gripper_base which is end effector in controller, add other offsets for pre- and post- grasp pose
-                obj2eef_mat = self.left_obj2eef_mat if action[1] == 'left' else self.right_obj2eef_mat
-                grasp_pose_mat = obj_grasp_mat.dot(obj2eef_mat)
-                grasp_pose_mat[:3, -1] += self.hold_offset * grasp_pose_mat[:3, 2]
-                grasp_pose = T.mat2pose(grasp_pose_mat)
-                pre_eef_grasp_pose_mat = grasp_pose_mat.copy()
-                pre_eef_grasp_pose_mat[:3, -1] -= self.grasp_offset * pre_eef_grasp_pose_mat[:3, 2]
-                pre_grasp_pose = T.mat2pose(pre_eef_grasp_pose_mat)
-                post_grasp_pose_mat = grasp_pose_mat.copy()
-                post_grasp_pose_mat[2, 3] += self.lift_offset  # lift in world frame
-                post_grasp_pose = T.mat2pose(post_grasp_pose_mat)
-                self._action_sequence.append(("Baxter6DPoseController", (action[1], pre_grasp_pose[0], pre_grasp_pose[1])))
-                self._action_sequence.append(("Baxter6DPoseController", (action[1], grasp_pose[0], grasp_pose[1])))
-                self._action_sequence.append(("close-gripper", action[1]))
-                self._action_sequence.append(("Baxter6DPoseController", (action[1], post_grasp_pose[0], post_grasp_pose[1])))
-            elif action[0] == 'connect':
-                m_site = action[2]
-                t_site = action[3]
-                target_site_qpos = self._site_xpos_xquat(t_site)
-                moving_site_qpos = self._site_xpos_xquat(m_site)
-
-                base_pos_in_world = self.sim.data.get_body_xpos("base")
-                base_rot_in_world = self.sim.data.get_body_xmat("base").reshape((3, 3))
-                base_pose_in_world = T.make_pose(base_pos_in_world, base_rot_in_world)
-                world_pose_in_base = T.pose_inv(base_pose_in_world)
-                target_site_qpos_mat = T.pose_in_A_to_pose_in_B(T.pose2mat((target_site_qpos[:3],target_site_qpos[3:])), world_pose_in_base)
-                moving_site_qpos_mat = T.pose_in_A_to_pose_in_B(T.pose2mat((moving_site_qpos[:3],moving_site_qpos[3:])), world_pose_in_base)
-
-                # translation = target_site_qpos[:3] - moving_site_qpos[:3]
-                # m_site_id = self.sim.model.site_name2id(m_site)
-                # m_body_id = self.sim.model.site_bodyid[m_site_id]
-                # m_body_name = self.sim.model.body_names[m_body_id]
-                # new_pos, new_quat = T.transform_to_target_quat(moving_site_qpos, self._get_qpos(m_body_name), target_site_qpos[3:])
-                translation = target_site_qpos_mat[:3,3]-moving_site_qpos_mat[:3,3]
-                rotation = (target_site_qpos_mat[:3,:3]).transpose().dot(moving_site_qpos_mat[:3,:3])
-                hand_pose_mat = self.pose_in_base_from_name('left_gripper_base') if action[1] == 'left' else self.pose_in_base_from_name('right_gripper_base')
-                target_hand_pose_mat = hand_pose_mat.copy()
-                target_hand_pose_mat[:3,3] += translation
-                # target_hand_pose_mat[:3,:3] = T.pose2mat((new_pos,new_quat))[:3, :3].dot(target_hand_pose_mat[:3,:3])
-                target_hand_pose_mat[:3, :3] = rotation.dot(target_hand_pose_mat[:3, :3])
-                pre_target_hand_pose_mat = target_hand_pose_mat.copy()
-                pre_target_hand_pose_mat[:3, -1] -= self.grasp_offset * pre_target_hand_pose_mat[:3, 2]
-                pre_target_hand_pose = T.mat2pose(pre_target_hand_pose_mat)
-                target_hand_pose = T.mat2pose(target_hand_pose_mat)
-                self._action_sequence.append(("Baxter6DPoseController", (action[1], pre_target_hand_pose[0], pre_target_hand_pose[1])))
-                self._action_sequence.append(("Baxter6DPoseController", (action[1], target_hand_pose[0], target_hand_pose[1])))
-                self._action_sequence.append(("connect", " "))
-            self.one_action(self._action_sequence)
+            action_times = 0
+            while 1:
+                success = self.high_level_action(action, action_times)
+                if success:
+                    break
+                action_times += 1
 
         if config.record_video:
             self.vr.save_video('FurnitureBaxterAssemblyEnv_test2.mp4')
@@ -234,15 +180,95 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
 
         return
 
+    def high_level_action(self, action, action_times):
+        self._action_sequence = []
+        if action[0] == 'grasp':
+            self.gripper_grabs = [-1, -1]
+            # 1. object part grasp pose transformed to workspace coordinate
+            part = action[2]
+            partname = part[part.rfind('_') + 1:]
+            local_grasp_pose = [self.pose_reader.read_object_pose(partname + '_grasp_pose_' + str(i), part) for i in
+                                range(self.n_grasp_pose[partname])]
+            local_grasp_pose_mat = [T.pose2mat((pose[:3], pose[3:])) for pose in local_grasp_pose]
+            part_pose_mat = self.pose_in_base_from_name(part)
+            ws_grasp_pose_mat = [T.pose_in_A_to_pose_in_B(grasp_pose_mat0, part_pose_mat) for grasp_pose_mat0 in
+                                 local_grasp_pose_mat]
+            found_downwards_grasppose = False
+            potential_pose = []
+            for obj_grasp_mat in ws_grasp_pose_mat:
+                # if obj_grasp_mat[2, 3] < 0:  # drop poses that are too low
+                #     continue
+                if obj_grasp_mat[2, 2] < -0.8:  # select grasp poses that has z axis pointing downwards
+                    found_downwards_grasppose = True
+                    potential_pose.append(obj_grasp_mat)
+            if not found_downwards_grasppose:
+                print('cannot find downwards grasppose')
+
+            obj_grasp_mat = potential_pose[action_times]
+            # 2. plus offset to gripper_base which is end effector in controller, add other offsets for pre- and post- grasp pose
+            obj2eef_mat = self.left_obj2eef_mat if action[1] == 'left' else self.right_obj2eef_mat
+            grasp_pose_mat = obj_grasp_mat.dot(obj2eef_mat)
+            grasp_pose_mat[:3, -1] += self.hold_offset * grasp_pose_mat[:3, 2]
+            grasp_pose = T.mat2pose(grasp_pose_mat)
+            pre_eef_grasp_pose_mat = grasp_pose_mat.copy()
+            pre_eef_grasp_pose_mat[:3, -1] -= self.grasp_offset * pre_eef_grasp_pose_mat[:3, 2]
+            pre_grasp_pose = T.mat2pose(pre_eef_grasp_pose_mat)
+            post_grasp_pose_mat = grasp_pose_mat.copy()
+            post_grasp_pose_mat[2, 3] += self.lift_offset  # lift in world frame
+            post_grasp_pose = T.mat2pose(post_grasp_pose_mat)
+            self._action_sequence.append(("Baxter6DPoseController", (action[1], pre_grasp_pose[0], pre_grasp_pose[1])))
+            self._action_sequence.append(("Baxter6DPoseController", (action[1], grasp_pose[0], grasp_pose[1])))
+            self._action_sequence.append(("close-gripper", action[1]))
+            self._action_sequence.append(("Baxter6DPoseController", (action[1], post_grasp_pose[0], post_grasp_pose[1])))
+        elif action[0] == 'connect':
+            m_site = action[2]
+            t_site = action[3]
+            target_site_qpos = self._site_xpos_xquat(t_site)
+            moving_site_qpos = self._site_xpos_xquat(m_site)
+
+            target_site_qpos_mat = T.pose_in_A_to_pose_in_B(T.pose2mat((target_site_qpos[:3], target_site_qpos[3:])),
+                                                            self.world_pose_in_base)
+            moving_site_qpos_mat = T.pose_in_A_to_pose_in_B(T.pose2mat((moving_site_qpos[:3], moving_site_qpos[3:])),
+                                                            self.world_pose_in_base)
+
+            # translation = target_site_qpos[:3] - moving_site_qpos[:3]
+            # m_site_id = self.sim.model.site_name2id(m_site)
+            # m_body_id = self.sim.model.site_bodyid[m_site_id]
+            # m_body_name = self.sim.model.body_names[m_body_id]
+            # new_pos, new_quat = T.transform_to_target_quat(moving_site_qpos, self._get_qpos(m_body_name), target_site_qpos[3:])
+            translation = target_site_qpos_mat[:3, 3] - moving_site_qpos_mat[:3, 3]
+            rotation = (target_site_qpos_mat[:3, :3]).transpose().dot(moving_site_qpos_mat[:3, :3])
+            hand_pose_mat = self.pose_in_base_from_name('left_gripper_base') if action[
+                                                                                    1] == 'left' else self.pose_in_base_from_name(
+                'right_gripper_base')
+            target_hand_pose_mat = hand_pose_mat.copy()
+            target_hand_pose_mat[:3, 3] += translation
+            # target_hand_pose_mat[:3,:3] = T.pose2mat((new_pos,new_quat))[:3, :3].dot(target_hand_pose_mat[:3,:3])
+            target_hand_pose_mat[:3, :3] = rotation.dot(target_hand_pose_mat[:3, :3])
+            pre_target_hand_pose_mat = target_hand_pose_mat.copy()
+            pre_target_hand_pose_mat[:3, -1] -= self.grasp_offset * pre_target_hand_pose_mat[:3, 2]
+            pre_target_hand_pose = T.mat2pose(pre_target_hand_pose_mat)
+            target_hand_pose = T.mat2pose(target_hand_pose_mat)
+            self._action_sequence.append(
+                ("Baxter6DPoseController", (action[1], pre_target_hand_pose[0], pre_target_hand_pose[1])))
+            self._action_sequence.append(
+                ("Baxter6DPoseController", (action[1], target_hand_pose[0], target_hand_pose[1])))
+            self._action_sequence.append(("connect", " "))
+        success = self.one_action(self._action_sequence)
+
+        return success
+
     def one_action(self, _action_sequence):
         ### ACTION SEQUENCE ###
         # start action sequence
         print("FurnitureBaxterAssemblyEnv: Starting action sequence")
-
+        success = True
         # perform action sequence
         for i in range(len(_action_sequence)):
             print("FurnitureBaxterAssemblyEnv: Starting action %d of %d" % (i+1, len(_action_sequence)))
 
+            if not success:
+                break
             # set up action
             action = _action_sequence[i]
             run = ""
@@ -312,6 +338,8 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             # perform action
             if run == "controller":
                 # run controller
+                potentials = np.zeros(10)
+                num_moving = 0
                 while not self._controller.objective_met:
                     # set flag so unity will update
                     self._unity_updated = False
@@ -321,6 +349,11 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     self.perform_command(velocities, self.gripper_grabs, True)
                     # render
                     self.vr.add(self.render('rgb_array'))
+                    potentials[num_moving%10] = self._controller.potential()
+                    if np.std(potentials) <= 1e-5:
+                        success = False
+                        break
+                    num_moving += 1
             elif run == "gripper":
                 # set flag so unity will update
                 self._unity_updated = False
@@ -341,10 +374,12 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 self.vr.add(self.render('rgb_array'))
 
             print("FurnitureBaxterAssemblyEnv: finished action %s" % action[0])
-
-        print("FurnitureBaxterAssemblyEnv: Goal met!")
+        if success:
+            print("FurnitureBaxterAssemblyEnv: Goal met!")
+        else:
+            print("This step is unfinished.")
         time.sleep(2)
-
+        return success
     """
     Performs the given controller command.
     Copied from part of _step_continuous() function in furniture.py
