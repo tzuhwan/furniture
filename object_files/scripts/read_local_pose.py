@@ -4,6 +4,9 @@ from scipy.spatial.transform import Rotation as R
 from scipy.spatial.transform import Slerp
 import math
 import numpy as np
+import os
+import json
+
 # pose: [x, y, z, qx, qy, qz, qw]
 
 def euler2rotm(euler):
@@ -44,16 +47,36 @@ def interpolate_rotate_axis(pose, axis='z', n=10):
     return pose_array
     
 
+obj_list_global = {
+    '1_chair_base': [10], # n_grasp_pose
+    '2_chair_column': [2, 2],  # for objects with helper_poses, [n_grasp_pose, n_helper_pose]
+    '3_chair_seat': [14]
+}
+'''
+live connection interface class to CoppeliaSim
+'''
 class PoseReader(object):
-    def __init__(self):
-        self.sim_client = sim.simxStart('127.0.0.1', 19997, True, True, 5000, 5)  # Connect to V-REP on port 19997
+    def __init__(self, connect=True):
+        if connect:
+            self.connect()
+        else:
+            self.sim_client = -1
+        self.obj_list = obj_list_global
+    
+    def connect(self):
+        self.sim_client = sim.simxStart('127.0.0.1', 19997, True, True, -5000, 5)  # Connect to V-REP on port 19997
         if self.sim_client == -1:
             print('Failed to connect to simulation (V-REP remote API server). Exiting.')
-            exit()
+            return False
         else:
             print('Connected to simulation.')
+            return True
     
     def read_obj_size(self, obj):
+        if self.sim_client == -1:
+            connected = self.connect()
+            if not connected:
+                return []
         _, object_handle = sim.simxGetObjectHandle(self.sim_client, obj, sim.simx_opmode_blocking)
         _, xmin = sim.simxGetObjectFloatParameter(self.sim_client, object_handle, 15, sim.simx_opmode_blocking)
         _, ymin = sim.simxGetObjectFloatParameter(self.sim_client, object_handle, 16, sim.simx_opmode_blocking)
@@ -65,23 +88,41 @@ class PoseReader(object):
         return [xmin, ymin, zmin, xmax, ymax, zmax]
 
     def read_object_pose(self, obj1, obj2):
+        if self.sim_client == -1:
+            connected = self.connect()
+            if not connected:
+                return []
         sim_ret, obj_handle1 = sim.simxGetObjectHandle(self.sim_client, obj1, sim.simx_opmode_blocking)
         sim_ret, obj_handle2 = sim.simxGetObjectHandle(self.sim_client, obj2, sim.simx_opmode_blocking)
         sim_ret, pos = sim.simxGetObjectPosition(self.sim_client, obj_handle1, obj_handle2, sim.simx_opmode_blocking)
         sim_ret, rot = sim.simxGetObjectOrientation(self.sim_client, obj_handle1, obj_handle2, sim.simx_opmode_blocking)
-        # print(pos, euler2rotm(rot))
         return np.concatenate([pos, euler2quat(rot)])
+    
+    def save_json_file(self, filename='default_furniture_grasp_poses.json'):
+        grasp_pose_dict = {}
+        for obj in self.obj_list:
+            grasp_n = self.obj_list[obj]
+            grasp_pose_dict[obj] = []
+            for i in range(grasp_n[0]):
+                pose_name = '{}_grasp_pose_{}'.format(obj[obj.rfind('_')+1:], i)
+                pose = self.read_object_pose(pose_name, obj).tolist()
+                grasp_pose_dict[obj].append(pose)
+            if len(grasp_n) == 2: # has helper grasp pose, append to the end
+                for j in range(grasp_n[1]):
+                    pose_name = '{}_helper_pose_{}'.format(obj[obj.rfind('_')+1:], j)
+                    pose = self.read_object_pose(pose_name, obj).tolist()
+                    grasp_pose_dict[obj].append(pose)
+        with open(filename, 'w') as f:
+            json.dump(grasp_pose_dict, f, indent=4)
+            
+    def read_json_file(self, filename='default_furniture_grasp_poses.json'):
+        grasp_pose_dict = {}
+        with open(filename, 'r') as f:
+            grasp_pose_dict = json.load(f)
+        return grasp_pose_dict
         
 
-
-if __name__ == '__main__':
+if __name__ == '__main__':    
     p = PoseReader()
-    # p.read_obj_size('swivel_chair__base')
-    # p.read_obj_size('swivel_chair__column')
-    
-    # base_grasp_pose_0 = p.read_object_pose('base_grasp_pose_0', 'swivel_chair__base')
-    # base_grasp_pose_1 = p.read_object_pose('base_grasp_pose_1', 'swivel_chair__base')
-    # interpolate_pos(base_grasp_pose_0, base_grasp_pose_1)
-    
-    column_grasp_pose_0 = p.read_object_pose('column_grasp_pose_0', 'swivel_chair__column')
-    interpolate_rotate_axis(column_grasp_pose_0)
+    p.save_json_file()
+    p.read_json_file()
