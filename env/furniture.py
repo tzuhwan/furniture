@@ -915,17 +915,19 @@ class FurnitureEnv(metaclass=EnvMeta):
                 left_gripper_dis = action[-2]
                 action = np.concatenate([right_d_pos, right_d_quat, left_d_pos,
                                          left_d_quat, [right_gripper_dis, left_gripper_dis]])
-                print("left gripper pos: ", self._left_hand_pos, "left gripper quat: ", self._left_hand_quat) # TODO
-                print("right gripper pos: ", self._right_hand_pos, "right gripper quat: ", self._right_hand_quat) # TODO
-                right_pos, right_quat, left_pos, left_quat = self._controller.ik_robot_eef_joint_cartesian_pose()
-                right_pos_world, right_quat_world = self._controller.bullet_base_pose_to_world_pose(
-                    (right_pos, right_quat)
-                )
-                left_pos_world, left_quat_world = self._controller.bullet_base_pose_to_world_pose(
-                    (left_pos, left_quat)
-                )
-                print("left controller gripper pos: ", left_pos_world, "left controller gripper quat: ", left_quat_world)
-                print("right controller gripper pos: ", right_pos_world, "right controller gripper quat: ", right_quat_world)
+
+                # print("left gripper pos base: ", self._left_hand_pos, "left gripper quat base: ", self._left_hand_quat) # TODO
+                # print("right gripper pos: ", self._right_hand_pos, "right gripper quat: ", self._right_hand_quat) # TODO
+                # right_pos, right_quat, left_pos, left_quat = self._controller.ik_robot_eef_joint_cartesian_pose()
+                # right_pos_world, right_quat_world = self._controller.bullet_base_pose_to_world_pose(
+                #     (right_pos, right_quat)
+                # ) # TODO
+                # left_pos_world, left_quat_world = self._controller.bullet_base_pose_to_world_pose(
+                #     (left_pos, left_quat)
+                # ) # TODO
+                # print("left gripper pos world: ", left_pos_world, "left controller gripper quat world: ", left_quat_world) # TODO
+                # print("right controller gripper pos: ", right_pos_world, "right controller gripper quat: ", right_quat_world) # TODO
+                # print("seat pos sim: ", self._get_pos('3_chair_seat'), "seat quat sim: ", self._get_quat('3_chair_seat')) # TODO
 
             input_1 = self._make_input(action[:7], self._right_hand_quat)
             if self._agent_type == "Sawyer":

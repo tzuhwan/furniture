@@ -1,5 +1,5 @@
 """
-3D position controller for Baxter
+6D pose controller for objects being manipulated by Baxter
 
 NOTE: requires pybullet module.
 
@@ -21,10 +21,10 @@ import env.transform_utils as T
 from env.controllers import BaxterIKController
 
 """
-3D position controller for the Baxter robot, using Pybullet and the urdf description
-files.
+6D pose controller for objects being manipulated by the Baxter robot, using Pybullet
+and the urdf description files.
 """
-class Baxter3DPositionController(BaxterIKController):
+class BaxterObject6DPoseController(BaxterIKController):
 
 	"""
 	Constructor.
@@ -36,34 +36,38 @@ class Baxter3DPositionController(BaxterIKController):
 
 	Inherited from Controller base class.
 	"""
-	def __init__(self, bullet_data_path, robot_jpos_getter, verbose=True, debug=False):
-		print("Baxter3DPositionController: Initializing 3DPosition Controller")
+	def __init__(self, bullet_data_path, robot_jpos_getter, objects_in_scene, verbose=True, debug=False):
+		print("BaxterObject6DPoseController: Initializing Object 6DPose Controller")
 
 		# initialize super class
 		super().__init__(bullet_data_path, robot_jpos_getter)
 
 		# set debug and verbose flags
-		self.debug = debug
 		self.verbose = verbose
+		self.debug = debug
+
+		# set list of objects in scene
+		self.object_names = objects_in_scene
 
 		# max potential
 		self.max_potential = 100
 
 		# potential threshold (potential less than this means no update will be performed)
-		self.potential_threshold = 0.0005
+		self.potential_threshold = 0.003
 
 		# controller objective met flag
 		self.objective_met = False
 
 		# set move and rotate speed, for scaling motions; these are equivalent to controller gains
-		self.move_speed = 0.025
-		self.rotate_speed = 0.05
+		self.move_speed = 0.025 # TODO
+		self.rotate_speed = 0.03 # TODO
 
 		# set arm speed, which controls how fast the arm performs the commands
 		self.arm_step = 2
 
-		# initialize control arm
+		# initialize control arm and control object
 		self.control_arm = ""
+		self.object_name = ""
 
 		# initialize current pose
 		self.set_current_pose()
@@ -89,8 +93,9 @@ class Baxter3DPositionController(BaxterIKController):
 		# sync joint positions for IK
 		self.sync_ik_robot(self.robot_jpos_getter())
 
-		# set current pose and compute potential
+		# set current pose and object pose and compute potential
 		self.set_current_pose()
+		self.get_current_object_pose()
 		pot = self.potential()
 
 		# initialize velocities for proportional controller
@@ -98,7 +103,7 @@ class Baxter3DPositionController(BaxterIKController):
 
 		# if potential is low enough, no update needed
 		if pot < self.potential_threshold:
-			print("Baxter3DPositionController: Goal met! No update needed.")
+			print("BaxterObject6DPoseController: Goal met! No update needed.")
 			self.objective_met = True
 			return velocities
 
@@ -116,7 +121,7 @@ class Baxter3DPositionController(BaxterIKController):
 
 		# compute velocities based on error
 		for i, delta in enumerate(deltas):
-			velocities[i] = -self.arm_step * delta
+			velocities[i] = -2 * delta # TODO what does the 2 do? scaling factor?
 		
 		# clip velocities
 		velocities = self.clip_joint_velocities(velocities)
@@ -129,18 +134,25 @@ class Baxter3DPositionController(BaxterIKController):
 	"""
 	Sets the goal of the controller in world frame.
 	"""
-	def set_goal(self, control_arm, goal_pos, goal_quat=None):
+	def set_goal(self, control_arm, object_name, object_goal_pos, object_goal_quat):
 		# check for valid arm
 		if not ((control_arm == "left") or (control_arm == "right")):
-			print("Baxter3DPositionController: Arm %s not recognized" % control_arm)
+			print("BaxterObject6DPoseController: Arm %s not recognized" % control_arm)
 			raise NameError
 			return
 
-        # we now know arm is either "left" or "right"
+		if object_name not in self.object_names:
+			print("BaxterObject6DPoseController: Object %s not recognized" % object_name)
+			print("BaxterObject6DPoseController: The recognized objects are ", self.object_names)
+			raise NameError
+			return
+
+        # we now know arm is either "left" or "right" and object is in scene
 		self.control_arm = control_arm
-		self.goal_pos = goal_pos
-		self.goal_quat = goal_quat # rotation will not be used to determine goal
-		print("Baxter3DPositionController: New goal set for %s arm" % self.control_arm)
+		self.object_name = object_name
+		self.object_goal_pos = object_goal_pos
+		self.object_goal_quat = object_goal_quat
+		print("BaxterObject6DPoseController: New goal set for %s arm and object %s" % (self.control_arm, self.object_name))
 		return
 
 	"""
@@ -158,16 +170,16 @@ class Baxter3DPositionController(BaxterIKController):
 		if curr_right_pos is None:
 			curr_right_pos, curr_right_quat, curr_left_pos, curr_left_quat = self.ik_robot_eef_joint_cartesian_pose()
 			if self.debug:
-				print("Baxter3DPositionController: left pos from ik in base frame: ", curr_left_pos)
-				print("Baxter3DPositionController: left rot from ik in base frame: ", curr_left_quat)
-				print("Baxter3DPositionController: right pos from ik in base frame: ", curr_right_pos)
-				print("Baxter3DPositionController: right rot from ik in base frame: ", curr_right_quat)
+				print("BaxterObject6DPoseController: left pos from ik in base frame: ", curr_left_pos)
+				print("BaxterObject6DPoseController: left rot from ik in base frame: ", curr_left_quat)
+				print("BaxterObject6DPoseController: right pos from ik in base frame: ", curr_right_pos)
+				print("BaxterObject6DPoseController: right rot from ik in base frame: ", curr_right_quat)
 		else:
 			if self.debug:	
-				print("Baxter3DPositionController: given left pos in base frame: ", curr_left_pos)
-				print("Baxter3DPositionController: given left rot in base frame: ", curr_left_quat)
-				print("Baxter3DPositionController: given right pos in base frame: ", curr_right_pos)
-				print("Baxter3DPositionController: given right rot in base frame: ", curr_right_quat)
+				print("BaxterObject6DPoseController: given left pos in base frame: ", curr_left_pos)
+				print("BaxterObject6DPoseController: given left rot in base frame: ", curr_left_quat)
+				print("BaxterObject6DPoseController: given right pos in base frame: ", curr_right_pos)
+				print("BaxterObject6DPoseController: given right rot in base frame: ", curr_right_quat)
 
 		# compute left and right poses in world frame
 		curr_left_pos_in_world, curr_left_quat_in_world = self.bullet_base_pose_to_world_pose(
@@ -178,10 +190,10 @@ class Baxter3DPositionController(BaxterIKController):
 		)
 
 		if self.debug:
-			print("Baxter3DPositionController: left pos in world frame: ", curr_left_pos_in_world)
-			print("Baxter3DPositionController: left rot in world frame: ", curr_left_quat_in_world)
-			print("Baxter3DPositionController: right pos in world frame: ", curr_right_pos_in_world)
-			print("Baxter3DPositionController: right rot in world frame: ", curr_right_quat_in_world)
+			print("BaxterObject6DPoseController: left pos in world frame: ", curr_left_pos_in_world)
+			print("BaxterObject6DPoseController: left rot in world frame: ", curr_left_quat_in_world)
+			print("BaxterObject6DPoseController: right pos in world frame: ", curr_right_pos_in_world)
+			print("BaxterObject6DPoseController: right rot in world frame: ", curr_right_quat_in_world)
 
 		# set left and right poses
 		self.curr_left_pos = curr_left_pos_in_world
@@ -200,6 +212,38 @@ class Baxter3DPositionController(BaxterIKController):
 		return
 
 	"""
+	Sets the pose of the given object name in the base frame.
+
+	@param name, the name of the body whose pose is being set
+	@param pose_matrix, the matrix representing the pose of the object in the base frame
+	"""
+	def set_object_pose(self, name, pose_matrix):
+		if name == self.object_name:
+			pos, quat = T.mat2pose(pose_matrix)
+			self.object_curr_pos_base = pos
+			self.object_curr_quat_base = quat
+			if self.debug:
+				print("BaxterObject6DPoseController:", self.object_name, "pos in base: ", self.object_curr_pos_base)
+				print("BaxterObject6DPoseController:", self.object_name, "rot in base: ", self.object_curr_quat_base)
+		else:
+			print("BaxterObject6DPoseController: object name %s not recognized; not setting pose" % name)
+		return
+
+	"""
+	Gets the pose of the object in the world frame.
+	"""
+	def get_current_object_pose(self):
+		object_pos_world, object_quat_world = self.bullet_base_pose_to_world_pose(
+			(self.object_curr_pos_base, self.object_curr_quat_base)
+		)
+		self.object_curr_pos = object_pos_world
+		self.object_curr_quat = object_quat_world
+		if self.debug:
+			print("BaxterObject6DPoseController:", self.object_name, "pos in world: ", self.object_curr_pos)
+			print("BaxterObject6DPoseController:", self.object_name, "rot in world: ", self.object_curr_quat)
+		return
+
+	"""
 	Returns the arm being controlled by the controller.
 	"""
 	def get_control_arm(self):
@@ -213,7 +257,7 @@ class Baxter3DPositionController(BaxterIKController):
 			self.move_speed = move_speed
 		if rotate_speed is not None:
 			self.rotate_speed = rotate_speed
-		print("Baxter3DPositionController: Set new motion speeds, move_speed=%f, rotate_speed=%f" % (self.move_speed, self.rotate_speed))
+		print("BaxterObject6DPoseController: Set new motion speeds, move_speed=%f, rotate_speed=%f" % (self.move_speed, self.rotate_speed))
 		return
 
 	"""
@@ -221,8 +265,14 @@ class Baxter3DPositionController(BaxterIKController):
 	"""
 	def set_arm_speed(self, arm_speed):
 		self.arm_step = arm_speed
-		print("Baxter3DPositionController: Set new arm speed")
+		print("BaxterObject6DPoseController: Set new arm speed")
 		return
+
+	"""
+	Returns the object being controlled by the controller.
+	"""
+	def get_object_name(self):
+		return self.object_name
 
 	#################################################
 	### POTENTIAL FIELD AND CONTROL LAW FUNCTIONS ###
@@ -234,20 +284,20 @@ class Baxter3DPositionController(BaxterIKController):
 	"""
 	def potential(self):
 		# compute difference between current and goal pose
-		diff_pos = self.curr_pos - self.goal_pos
-		diff_quat = T.quat_multiply(T.quat_inverse(self.curr_quat), self.curr_quat) # no difference
+		diff_pos = self.object_curr_pos - self.object_goal_pos
+		diff_quat = T.quat_multiply(T.quat_inverse(self.object_curr_quat), self.object_goal_quat)
 		diff = np.hstack([diff_pos, diff_quat])
 
 		# compute distance to goal
 		dist_pos = np.linalg.norm(diff[:3])
-		dist_quat = Quaternion.distance(Quaternion(self.curr_quat), Quaternion(self.curr_quat)) # no difference
+		dist_quat = Quaternion.distance(Quaternion(self.object_curr_quat), Quaternion(self.object_goal_quat))
 		dist = dist_pos + dist_quat
 
 		# compute potential
 		pot = 0.5 * dist * dist
-		print("Baxter3DPositionController: potential %f" % pot)
-		if self.verbose:
-			print("Baxter3DPositionController: position distance %f, rotation distance %f" % (dist_pos, dist_quat))
+		print("BaxterObject6DPoseController: potential %f" % pot)
+		if True:#self.verbose: # TODO
+			print("BaxterObject6DPoseController: position distance %f, rotation distance %f" % (dist_pos, dist_quat))
 		return min(pot, self.max_potential)
 
 	"""
@@ -256,8 +306,8 @@ class Baxter3DPositionController(BaxterIKController):
 	"""
 	def gradient(self):
 		# compute difference between current and goal pose
-		diff_pos = self.curr_pos - self.goal_pos
-		diff_quat = T.quat_multiply(T.quat_inverse(self.curr_quat), self.curr_quat) # no difference
+		diff_pos = self.object_curr_pos - self.object_goal_pos
+		diff_quat = T.quat_multiply(T.quat_inverse(self.object_curr_quat), self.object_goal_quat)
 		diff = np.hstack([diff_pos, diff_quat])
 
 		# compute gradient
@@ -265,13 +315,13 @@ class Baxter3DPositionController(BaxterIKController):
 		return grad
 
 	"""
-	Compute the change in pose induced by the controller.
+	Compute the change in object pose induced by the controller.
 
 	@param none
-	@return the change in 6D pose induced by the controller
+	@return the change in object 6D pose induced by the controller
 	"""
 	def get_dx(self):
-		# compute gradient
+		# compute gradient of object
 		grad = self.gradient()
 
 		# compute dx
@@ -285,29 +335,42 @@ class Baxter3DPositionController(BaxterIKController):
 	@return the commanded joint positions induced by the controller
 	"""
 	def get_dq(self):
-		# compute dx
-		dx = self.get_dx()
+		# compute dx of object
+		dx_xyzquat = self.get_dx()
 
-		# compute targets
-		if self.control_arm == "left":
-			# target for left arm is to reach goal pose
-			target_left_pos = self.curr_pos + (self.move_speed * dx[:3]) # scale down position
-			target_left_quat = T.quat_multiply(self.curr_quat, dx[3:7]) # scale down rotation not necessary, since no rotation command
-			# target for right arm is to stay in place
-			target_right_pos = self.curr_right_pos + np.zeros_like(dx[:3])
-			target_right_quat_diff = T.quat_multiply(T.quat_inverse(self.curr_right_quat), self.curr_right_quat)
-			target_right_quat = T.quat_multiply(self.curr_right_quat, target_right_quat_diff)
-		else: # self.control_arm == "right"
-			# target for left arm is to stay in place
-			target_left_pos = self.curr_left_pos + np.zeros_like(dx[:3])
-			target_left_quat_diff = T.quat_multiply(T.quat_inverse(self.curr_left_quat), self.curr_left_quat)
-			target_left_quat = T.quat_multiply(self.curr_left_quat, target_left_quat_diff)
-			# target for right arm is to reach goal pose
-			target_right_pos = self.curr_pos + (self.move_speed * dx[:3]) # scale down position
-			target_right_quat = T.quat_multiply(self.curr_quat, dx[3:7]) # scale down rotation not necessary, since no rotation command
+		# get euler angles from quaternion
+		dx_rpy = T.quat_to_euler(dx_xyzquat[3:7])
 
-		# use inverse kinematics function to compute dq
-		dq = self.inverse_kinematics(
+		# get (6x1) dx
+		dx = np.hstack([dx_xyzquat[:3], dx_rpy])
+
+		# scale down dx
+		dx[:3] = self.move_speed * dx[:3]
+		dx[3:] = self.rotate_speed * dx[3:]
+
+		# compute (6xn) Jacobian with end-effector as object
+		J = self.compute_object_jacobian()
+
+		# compute (nx6) pseudoinverse of Jacobian
+		Jinv = np.linalg.pinv(J)
+
+		# compute change in configuration
+		dq = self.matrixMultiply(Jinv, dx) # (nx1) = (nx6) * (6x1)
+
+		# compute ik solution by from current joint states and dq
+		# note this ik solution does not accurately reflect arm that should stay stationary
+		ik_solution = self.robot_jpos_getter() + dq
+
+		# compute arm targets for stationary arms
+		target_left_pos = self.curr_left_pos + np.zeros_like(dx[:3])
+		target_left_quat_diff = T.quat_multiply(T.quat_inverse(self.curr_left_quat), self.curr_left_quat)
+		target_left_quat = T.quat_multiply(self.curr_left_quat, target_left_quat_diff)
+		target_right_pos = self.curr_right_pos + np.zeros_like(dx[:3])
+		target_right_quat_diff = T.quat_multiply(T.quat_inverse(self.curr_right_quat), self.curr_right_quat)
+		target_right_quat = T.quat_multiply(self.curr_right_quat, target_right_quat_diff)
+
+		# use inverse kinematics function to compute ik solution
+		ik_solution_stationary = self.inverse_kinematics(
 			target_right_pos,
 			target_right_quat,
 			target_left_pos,
@@ -315,7 +378,79 @@ class Baxter3DPositionController(BaxterIKController):
 			rest_poses=self.robot_jpos_getter()
 		)
 
-		return dq
+		# merge two ik solutions; ik_solution for arm that moves, ik_solution_stationary for arm that does not
+		if self.control_arm == "left":
+			control_command = np.hstack([ik_solution_stationary[:7], ik_solution[7:]])
+		else: # self.control_arm == "right":
+			control_command = np.hstack([ik_solution[:7], ik_solution_stationary[7:]])
+
+		return control_command
+
+	"""
+	Compute the manipulator Jacobian with the object as the end-effector.
+	Replaces the column corresponding to the gripper with the appropriate column
+	for the object.
+	"""
+	def compute_object_jacobian(self):
+		# get Jacobian, convert to numpy array
+		J = self.get_objective_jacobian()
+		J = np.array(J)
+
+		# compute indices for left and right wrists in the Jacobian
+		lidx = self.actual.index(38)
+		ridx = self.actual.index(20)
+
+		# get columns for left and right wrists from Jacobian
+		lcol = []
+		rcol = []
+		for row in J:
+			lcol.append(row[lidx])
+			rcol.append(row[ridx])
+
+		# compute new column with object as end-effector
+		# get joint axis w.r.t. world for control arm
+		if self.control_arm == "left":
+			joint_axis_world = lcol[3:6]
+		else: # self.control_arm == "right"
+			joint_axis_world = rcol[3:6]
+
+		# "end-effector" (object) origin w.r.t. world - joint (same as end-effector) origin w.r.t. world
+		o = self.object_curr_pos - self.curr_pos
+		# compute linear component
+		lin = np.cross(joint_axis_world, o)
+		# compute angular component
+		ang = joint_axis_world
+		# compute new column
+		Jcol_object = np.hstack([lin, ang])
+
+		# get index for new column in Jacobian
+		if self.control_arm == "left":
+			idx = lidx
+		else: # self.control_arm == "right"
+			idx = ridx
+
+		# set new column in Jacobian
+		for row in range(len(J)):
+			J[row][idx] = Jcol_object[row]
+
+		return J
+
+	"""
+	Compute the target end-effector pose from the given target object pose.
+	Assumes the grasp is fixed, and uses the difference between the current end-effector
+	and object poses to predict the target end-effector pose.
+	"""
+	def get_target_gripper_pose(self, target_object_pos, target_object_quat):
+		# compute difference between current end-effector and object poses
+		diff_pos = self.curr_pos - self.object_curr_pos # points from object to end-effector
+		diff_quat = T.quat_multiply(T.quat_inverse(self.curr_quat), self.object_curr_quat)
+		diff = np.hstack([diff_pos, diff_quat])
+
+		# compute target for end-effector based on target for object and expected difference between poses
+		target_ee_pos = target_object_pos + diff[:3]
+		target_ee_quat = T.quat_multiply(target_object_quat, diff[3:7])
+
+		return (target_ee_pos, target_ee_quat)
 
 	###################################################
 	### JACOBIAN AND NULLSPACE PROJECTION FUNCTIONS ###
@@ -341,7 +476,7 @@ class Baxter3DPositionController(BaxterIKController):
 	"""
 	Computes the Jacobian for this controller.
 
-	In this case, returns 3xn linear manipulator Jacobian.
+	In this case, returns 6xn manipulator Jacobian.
 	"""
 	def get_objective_jacobian(self):
 		# compute joint states and joint info
@@ -397,19 +532,22 @@ class Baxter3DPositionController(BaxterIKController):
 			print("linear Jacobian row size: ", len(J_lin), "col size: ", len(J_lin[0]))
 			print("angular Jacobian size: ", len(J_ang), "col size: ", len(J_ang[0]))
 
-		if self.verbose:
-			print("Baxter3DPositionController: computed %dx%d Jacobian" % (len(J_lin), len(J_lin[0])))
+		# set 6xn manipulator Jacobian
+		J = J_lin + J_ang
 
-		return J_lin
+		if self.verbose:
+			print("BaxterObject6DPoseController: computed %dx%d Jacobian" % (len(J), len(J[0])))
+
+		return J
 
 	"""
 	Computes the nullspace for performing lower-order controller commands subject to this controller.
 	"""
 	def get_objective_nullspace(self):
-		# get (3xn) objective Jacobian
+		# get (6xn) objective Jacobian
 		J = self.get_objective_jacobian()
 
-		# compute (nx3) pseudoinverse of Jacobian
+		# compute (nx6) pseudoinverse of Jacobian
 		Jinv = np.linalg.pinv(J)
 
 		# get (nxn) identity
@@ -417,10 +555,10 @@ class Baxter3DPositionController(BaxterIKController):
 		I = np.identity(ndof)
 
 		# compute nullspace (make sure Jinv and J are numpy arrays)
-		N = I - self.matrixMultiply(Jinv, J) # (nxn) = (nxn) - (nx3) * (3xn)
+		N = I - self.matrixMultiply(Jinv, J) # (nxn) = (nxn) - (nx6) * (6xn)
 
 		if self.verbose:
-			print("Baxter3DPositionController: computed %dx%d nullspace" % (len(N), len(N[0])))
+			print("BaxterObject6DPoseController: computed %dx%d nullspace" % (len(N), len(N[0])))
 
 		return N
 
@@ -441,6 +579,6 @@ class Baxter3DPositionController(BaxterIKController):
 		dq_projected = list(dq_projected_mat)
 
 		if self.verbose:
-			print("Baxter3DPositionController: computed %dx1 projected controller command" % len(dq_projected))
+			print("BaxterObject6DPoseController: computed %dx1 projected controller command" % len(dq_projected))
 
 		return dq_projected

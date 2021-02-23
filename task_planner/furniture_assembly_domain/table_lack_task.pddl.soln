@@ -1,0 +1,8 @@
+(pick-up-from-floor robot-gripper table-leg2-base table-leg2)
+(screw-into robot-gripper table-leg2-screw table-leg2 table-lack-top-hole2 table-lack-top)
+(pick-up-from-floor robot-gripper table-leg1-base table-leg1)
+(screw-into robot-gripper table-leg1-screw table-leg1 table-lack-top-hole1 table-lack-top)
+(pick-up-from-floor robot-gripper table-leg3-base table-leg3)
+(screw-into robot-gripper table-leg3-screw table-leg3 table-lack-top-hole3 table-lack-top)
+(pick-up-from-floor robot-gripper table-leg4-base table-leg4)
+(screw-into robot-gripper table-leg4-screw table-leg4 table-lack-top-hole4 table-lack-top)

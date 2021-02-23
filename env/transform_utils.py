@@ -589,6 +589,36 @@ def euler_to_quat(rotation, quat=None):
     return final_quat
 
 
+def quat_to_euler(quat):
+    """
+    Convert a quaternion into euler angles (roll, pitch, yaw)
+    roll is rotation around x in radians (counterclockwise)
+    pitch is rotation around y in radians (counterclockwise)
+    yaw is rotation around z in radians (counterclockwise)
+
+    Code copied from: https://automaticaddison.com/how-to-convert-a-quaternion-into-euler-angles-in-python/
+    """
+    w = quat[0]
+    x = quat[1]
+    y = quat[2]
+    z = quat[3]
+
+    t0 = +2.0 * (w * x + y * z)
+    t1 = +1.0 - 2.0 * (x * x + y * y)
+    roll_x = math.atan2(t0, t1)
+ 
+    t2 = +2.0 * (w * y - z * x)
+    t2 = +1.0 if t2 > +1.0 else t2
+    t2 = -1.0 if t2 < -1.0 else t2
+    pitch_y = math.asin(t2)
+ 
+    t3 = +2.0 * (w * z + x * y)
+    t4 = +1.0 - 2.0 * (y * y + z * z)
+    yaw_z = math.atan2(t3, t4)
+ 
+    return [roll_x, pitch_y, yaw_z] # in radians
+
+
 def transform_to_target_quat(qpos_base, qpos, target_quat):
     """
     Returns new position and rotation of @qpos when rotate @qpos_base to @target_quat
