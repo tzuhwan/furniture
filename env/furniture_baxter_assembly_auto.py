@@ -40,61 +40,24 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         if not config.live_connect_coppeliasim:
             self.grasp_pose_dict = self.pose_reader.read_json_file(config.grasp_pose_json_file)
         else:
-            self.grasp_pose_dict = []
+            self.grasp_pose_dict = self.pose_reader.save_dict()
         
         # fixed offsets related to grasping
         self.hold_offset = 0.02  # make sure the gripper covers the object with some distance and object won't slip out
         self.grasp_offset = 0.05 + self.hold_offset
-        self.lift_offset = 0.2 # 0.01 is even hard for some cases
-
-        ### sequence for assembling swivel chair
-        # swivelchair_poleprep_pos_right = [0.55756265, -0.1, -0.11673727]
-        # swivelchair_poleprep_quat_right = [-0.58808523, 0.53074937, 0.46539465, 0.39480208]
-        # swivelchair_polepick_pos_right = [0.53, -0.00189214, -0.11673727]
-        # swivelchair_polepick_quat_right = [-0.58808523, 0.53074937, 0.46539465, 0.39480208]
-        # swivelchair_polepost_pos_right = [0.65, -0.12, -0.04]
-        # swivelchair_polepost_quat_right = [-0.58846033, 0.52953778, 0.46733307, 0.39357843]
-        # swivelchair_polecnct_pos_right = [0.65, -0.12, -0.115]
-        # swivelchair_polecnct_quat_right = [-0.58846033, 0.52953778, 0.46733307, 0.39357843]
-        
-        # # tested, seems not able to lift the chair seat?
-        # swivelchair_seatprep_pos_left = [0.45077123, 0.32370803, 0.25]
-        # swivelchair_seatprep_quat_left = [0.68661902, -0.72083896, -0.08676259, 0.03765338]
-        # swivelchair_seatpick_pos_left = [0.45077123, 0.32370803, 0.13]
-        # swivelchair_seatpick_quat_left = [0.68661902, -0.72083896, -0.08676259, 0.03765338]
-        # swivelchair_cnctprep_pos_left = [0.45077123, 0.32370803, 0.25]
-        # swivelchair_cnctprep_quat_left = [0.68661902, -0.72083896, -0.08676259, 0.03765338]
-        # swivelchair_seatcnct_pos_left = [0.5916167, -0.00193475, 0.51251066]
-        # swivelchair_seatcnct_quat_left = [0.68599818, -0.72016698, -0.09497703, 0.04177788]
-        
-        # swivelchair_cnctpolebase_pickseat_sequence = [
-        #     ("Baxter6DPoseController", ("right", swivelchair_poleprep_pos_right, swivelchair_poleprep_quat_right)),
-        #     ("Baxter6DPoseController", ("right", swivelchair_polepick_pos_right, swivelchair_polepick_quat_right)),
-        #     ("close-gripper", "right"),
-        #     ("Baxter6DPoseController", ("right", swivelchair_polepost_pos_right, swivelchair_polepost_quat_right)),
-        #     ("Baxter6DPoseController", ("right", swivelchair_polecnct_pos_right, swivelchair_polecnct_quat_right)),
-        #     ("connect", ""),
-        #     ("open-gripper", "right"),
-        #     ("Baxter6DPoseController", ("left", swivelchair_seatprep_pos_left, swivelchair_seatprep_quat_left)),
-        #     ("Baxter6DPoseController", ("left", swivelchair_seatpick_pos_left, swivelchair_seatpick_quat_left)),
-        #     ("close-gripper", "left"),
-        #     ("Baxter6DPoseController", ("left", swivelchair_cnctprep_pos_left, swivelchair_cnctprep_quat_left)),
-        #     ("Baxter6DPoseController", ("left", swivelchair_seatcnct_pos_left, swivelchair_seatcnct_quat_left))
-        # ]
-        # # ADDITIONAL WAYPOINTS NOT TESTED YET
-        # #     ("Baxter6DPoseController", ("right", swivelchair_polecnct_pos_right, swivelchair_polecnct_quat_right)),
-        # #     ("connect", ""),
-        # #     ("open-gripper", "right"),
-        # #     ("Baxter6DPoseController", ("right", swivelchair_discnct_pos_right, swivelchair_discnct_quat_right)),
-        # #     ("Baxter6DPoseController", ("left", swivelchair_polecnct_pos_left, swivelchair_polecnct_quat_left)),
-        # #     ("connect", ""),
-        # #     ("Baxter6DPoseController", ("left", swivelchair_success_pos_left, swivelchair_success_quat_left)),
-        # #     ("open-gripper", "left")
-        # # ]
-
-        # # initialize sequence of actions, where each action is
-        # # (action/controller, params) tuple
-        # self._action_sequence = swivelchair_cnctpolebase_pickseat_sequence
+        self.lift_offset = 0.05 # 0.01 is even hard for some cases
+    
+    """
+    Use existing 2D random position with standing random z rotation as pose initialization,
+    TODO: add lying down pose
+    """
+    def random_place_objects(self, x_range=[-0.2, 0.2], y_range=[-0.1, 0.2]):
+        self.mujoco_model.initializer.x_range = x_range
+        self.mujoco_model.initializer.y_range = y_range
+        pos, quat = self.mujoco_model.place_objects() # raise error in id=4 desk_mikael, may need different range for different objects
+        for i, (obj_name, obj_mjcf) in enumerate(self.mujoco_objects.items()):
+            self._set_qpos(obj_name, pos[i], quat[i])
+            print('{} pos: {}, quat {}'.format(obj_name, pos[i], quat[i]))
 
     """
     Takes a simulation step with @a and computes reward.
@@ -119,10 +82,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
 
         # initialize gripper states (both open)
         self.gripper_grabs = [-1, -1]
-
-        if config.furniture_name is not None:
-            config.furniture_id = furniture_name2id[config.furniture_name]
-        ob = self.reset(config.furniture_id, config.background)
+        self.reset(config.furniture_id, config.background)
         # reset swivel base
         if config.furniture_id == 7: # swivel chair
             print("reseting swivel chair base pose")
@@ -135,15 +95,18 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 [1.0, 0.0, 0.0, 0.0]
             )
             self._set_qpos('3_chair_seat',
-                           [0.23653631, -0.28022969, 0.14596923],
+                           [0.23653631, -0.08022969, 0.14596923],
                            [1.0, 0.0, 0.0, 0.0]
             )
+        self.random_place_objects()
         
         self.default_eef_mat = {'left': self.pose_in_base_from_name('left_gripper_base'), 'right': self.pose_in_base_from_name('right_gripper_base')}
         left_gripper_pose = (self.pose_in_base_from_name('l_gripper_l_finger_tip') + self.pose_in_base_from_name('l_gripper_r_finger_tip')) / 2  # orientations are the same
         self.left_obj2eef_mat = T.pose_inv(left_gripper_pose).dot(self.default_eef_mat['left'])
         right_gripper_pose = (self.pose_in_base_from_name('r_gripper_l_finger_tip') + self.pose_in_base_from_name('r_gripper_r_finger_tip')) / 2  # orientations are the same
         self.right_obj2eef_mat = T.pose_inv(right_gripper_pose).dot(self.default_eef_mat['right'])
+        self.default_eef_mat['left'][1, 3] += 0.25
+        self.default_eef_mat['right'][1, 3] -= 0.25  # move arm further in base y direction to clear the space 
 
         base_pos_in_world = self.sim.data.get_body_xpos("base")
         base_rot_in_world = self.sim.data.get_body_xmat("base").reshape((3, 3))
@@ -154,18 +117,15 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             self.render()
         
         if config.furniture_id == 7: # swivel_chair:
+            self.object = '7_swivel_chair'
             self._actions = [
+                ('side', 'left'),    # move arm to the side to clear the place
                 ('grasp', 'right', '2_chair_column'),
                 ('connect', 'right', 'column-base,conn_site1', 'base-column,conn_site1'),  # assumption: has grasped first part
-                ('release', 'right'), # return arm to default place
+                ('side', 'right'), 
                 ('grasp', 'left', '3_chair_seat'),
-                ('connect', 'left', 'seat-column,conn_site2', 'column-seat,conn_site2')  # todo: change to screw for rotation operation
+                ('connect', 'left', 'seat-column,conn_site2', 'column-seat,conn_site2'),
             ]
-            self.n_grasp_pose = { # should be consistent with CoppeliaSim labels
-                'base': 10,
-                'column': 4,
-                'seat': 14
-            }
 
         from util.video_recorder import VideoRecorder
         self.vr = VideoRecorder()
@@ -174,7 +134,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         for action in self._actions:
             action_times = 0
             while 1:
-                success = self.high_level_action(action, action_times)
+                success = self.single_action(action, action_times)
                 if success:
                     break
                 action_times += 1
@@ -186,22 +146,17 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
 
         return
 
-    def high_level_action(self, action, action_times):
+    def single_action(self, action, action_times):
         self._action_sequence = []
         if action[0] == 'grasp':
             self.gripper_grabs = [-1, -1]
             # 1. object part grasp pose transformed to workspace coordinate
             part = action[2]
             partname = part[part.rfind('_') + 1:]
-            if self.grasp_pose_dict == []:
-                local_grasp_pose = [self.pose_reader.read_object_pose(partname + '_grasp_pose_' + str(i), part) for i in
-                                range(self.n_grasp_pose[partname])]
-            else:
-                local_grasp_pose = [self.grasp_pose_dict[part][i] for i in range(self.n_grasp_pose[partname])]
+            local_grasp_pose = self.grasp_pose_dict[self.object][part]
             part_pose_mat = self.pose_in_base_from_name(part)
             local_grasp_pose_mat = [T.pose2mat((pose[:3], pose[3:])) for pose in local_grasp_pose]
-            ws_grasp_pose_mat = [T.pose_in_A_to_pose_in_B(grasp_pose_mat0, part_pose_mat) for grasp_pose_mat0 in
-                                 local_grasp_pose_mat]
+            ws_grasp_pose_mat = [T.pose_in_A_to_pose_in_B(grasp_pose_mat0, part_pose_mat) for grasp_pose_mat0 in local_grasp_pose_mat]
             found_downwards_grasppose = False
             potential_pose = []
             for obj_grasp_mat in ws_grasp_pose_mat:
@@ -261,7 +216,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             self._action_sequence.append(
                 ("Baxter6DPoseController", (action[1], target_hand_pose[0], target_hand_pose[1])))
             self._action_sequence.append(("connect", " "))
-        elif action[0] == 'release':
+        elif action[0] == 'side':
             target_pose_mat = self.default_eef_mat[action[1]]
             target_pose = T.mat2pose(target_pose_mat)
             self._action_sequence.append(("open-gripper", action[1]))
@@ -351,7 +306,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             # perform action
             if run == "controller":
                 # run controller
-                potentials = np.zeros(10)
+                potentials = np.zeros(20)
                 num_moving = 0
                 while not self._controller.objective_met:
                     # set flag so unity will update
@@ -362,8 +317,8 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     self.perform_command(velocities, self.gripper_grabs, True)
                     # render
                     self.vr.add(self.render('rgb_array'))
-                    potentials[num_moving%10] = self._controller.potential()
-                    if np.std(potentials) <= 1e-5:
+                    potentials[num_moving%20] = self._controller.potential()
+                    if np.std(potentials) <= 1e-7 or np.all(np.diff(potentials) > 0):
                         success = False
                         break
                     num_moving += 1
@@ -468,16 +423,18 @@ def main():
     furniture_config.add_argument(parser)
 
     # change default config for Baxter
-    parser.add_argument('--seed', type=int, default=123)
+    parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--debug', type=str2bool, default=False)
 
     parser.set_defaults(render=True)
 
     config, unparsed = parser.parse_known_args()
     config.furniture_id = 7 # swivel_chair
-    config.record_video = True
+    config.record_video = False
     config.live_connect_coppeliasim = False
     config.grasp_pose_json_file = 'default_furniture_grasp_poses.json'
+    # config.seed = np.random.randint(low=0, high=100000)
+        
     # create an environment and run manual control of Baxter environment
     env = FurnitureBaxterAssemblyEnv(config)
     env.run_controller(config)

@@ -81,7 +81,7 @@ class UniformRandomSampler(ObjectPositionSampler):
     def sample_y(self, object_horizontal_radius):
         y_range = self.y_range
         if y_range is None:
-            y_range = [-self.table_size[0] / 2, self.table_size[0] / 2]
+            y_range = [-self.table_size[1] / 2, self.table_size[1] / 2]
         minimum = min(y_range)
         maximum = max(y_range)
         if self.ensure_object_boundary_in_range:
@@ -99,7 +99,7 @@ class UniformRandomSampler(ObjectPositionSampler):
         else:
             rot_angle = self.z_rotation
 
-        return [np.cos(rot_angle / 2), 0, 0, np.sin(rot_angle / 2)]
+        return [np.cos(rot_angle / 2), 0, 0, np.sin(rot_angle / 2)]  # rotation about z axis which is upwards
 
     def sample(self):
         pos_arr = []
@@ -110,7 +110,7 @@ class UniformRandomSampler(ObjectPositionSampler):
             horizontal_radius = obj_mjcf.get_horizontal_radius(obj_name)
             bottom_offset = obj_mjcf.get_bottom_offset(obj_name)
             success = False
-            for i in range(10000):  # 1000 retries
+            for i in range(1000):  # 1000 retries
                 object_x = self.sample_x(horizontal_radius)
                 object_y = self.sample_y(horizontal_radius)
                 # objects cannot overlap
