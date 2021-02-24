@@ -20,6 +20,7 @@ from env.controllers import BaxterRotationController
 
 import env.transform_utils as T
 from object_files.scripts.read_local_pose import PoseReader
+from task_planner.pyperplan import pyperplan
 
 """
 Baxter robot environment with furniture assembly task.
@@ -99,6 +100,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                            [1.0, 0.0, 0.0, 0.0]
             )
         self.random_place_objects(x_range=[-0.2, 0.2], y_range=[-0.1, 0.2])
+        
         
         self.default_eef_mat = {'left': self.pose_in_base_from_name('left_gripper_base'), 'right': self.pose_in_base_from_name('right_gripper_base')}
         left_gripper_pose = (self.pose_in_base_from_name('l_gripper_l_finger_tip') + self.pose_in_base_from_name('l_gripper_r_finger_tip')) / 2  # orientations are the same

@@ -289,3 +289,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# ./pyperplan/pyperplan.py -s astar furniture_assembly_domain/domain.pddl furniture_assembly_domain/table_lack_task.pddl

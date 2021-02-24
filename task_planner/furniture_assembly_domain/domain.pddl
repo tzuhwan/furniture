@@ -2,7 +2,7 @@
 	(:requirements :strips :typing)
 	(:types
 		tool tool-part - object
-		table-top table-leg - tool
+		table-top table-leg chair-base chair-leg chair-seat shelf-frame shelf-box desk-plane desk-drawer - tool
 		handle-part action-part - tool-part
 		gripper
 	)
@@ -14,14 +14,17 @@
 		(empty ?g - gripper)
 		(in-hand ?g - gripper ?t - tool)
 		(screwed-into ?t - tool ?s - tool)
+        (connected-to ?t - tool ?s - tool)
 		(part-of ?tp - tool-part ?t - tool)
 		(affords-picking ?tp - handle-part)
 		(affords-screwing ?tp - action-part)
+        (affords-connecting ?tp - action-part)
 		(affords-hammering ?tp - action-part)
 		(affords-turning-on ?tp - action-part)
 		(affords-turning-off ?tp - action-part)
 		(affords-placing ?t - tool)
 		(affords-screwing-into ?s - tool ?tp - tool-part ?t - tool)
+        (affords-connecting-to ?s - tool ?tp - tool-part ?t - tool)
 	)
 
 	(:action pick-up-from-tool
@@ -46,5 +49,11 @@
 		:parameters (?g - gripper ?tp - action-part ?tl - tool ?th - tool-part ?tt - tool)
 		:precondition (and (in-hand ?g ?tl) (part-of ?tp ?tl) (affords-screwing ?tp) (part-of ?th ?tt) (affords-screwing-into ?tl ?th ?tt))
 		:effect (and (screwed-into ?tl ?tt) (clear ?tl) (empty ?g) (not (in-hand ?g ?tl)))
+	)
+
+    (:action connect-to
+		:parameters (?g - gripper ?tp - action-part ?tl - tool ?th - tool-part ?tt - tool)
+		:precondition (and (in-hand ?g ?tl) (part-of ?tp ?tl) (affords-connecting ?tp) (part-of ?th ?tt) (affords-connecting-to ?tl ?th ?tt))
+		:effect (and (connected-to ?tl ?tt) (clear ?tl) (empty ?g) (not (in-hand ?g ?tl)))
 	)
 )
