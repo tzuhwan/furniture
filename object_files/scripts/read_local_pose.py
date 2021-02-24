@@ -1,5 +1,4 @@
-from .vrep_newlib import sim # need relative path to call from furniture_baxter_assembly_auto
-# from vrep_newlib import sim
+from vrep_newlib import sim
 from scipy.spatial.transform import Rotation as R
 from scipy.spatial.transform import Slerp
 import math
@@ -140,11 +139,12 @@ class PoseReader(object):
     def save_dict(self):
         grasp_pose_dict = {}
         for obj in self.obj_list:
-            print(obj)
-            grasp_pose_dict[obj] = {}
+            obj_key = obj[2:]
+            print(obj_key)
+            grasp_pose_dict[obj_key] = {}
             for part in self.obj_list[obj]:
                 print(part)
-                grasp_pose_dict[obj][part] = []
+                grasp_pose_dict[obj_key][part] = []
                 grasp_n, posename = self.obj_list[obj][part][0], self.obj_list[obj][part][1]
                 if len(self.obj_list[obj][part]) == 3: # name in coppeliasim is different from objectname__partname because many parts share a model, etc.
                     partname = '{}__{}'.format(obj, self.obj_list[obj][part][2])
@@ -153,12 +153,12 @@ class PoseReader(object):
                 for i in range(grasp_n[0]):
                     pose_name = '{}_{}'.format(posename[0], i)
                     pose = self.read_object_pose(pose_name, partname).tolist()
-                    grasp_pose_dict[obj][part].append(pose)
+                    grasp_pose_dict[obj_key][part].append(pose)
                 if len(grasp_n) == 2: # has helper grasp pose, append to the end
                     for j in range(grasp_n[1]):
                         pose_name = '{}_{}'.format(posename[1], j)
                         pose = self.read_object_pose(pose_name, partname).tolist()
-                        grasp_pose_dict[obj][part].append(pose)
+                        grasp_pose_dict[obj_key][part].append(pose)
         return grasp_pose_dict
     
     def save_json_file(self, filename='default_furniture_grasp_poses.json'):

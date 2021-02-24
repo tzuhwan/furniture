@@ -32,6 +32,8 @@ import heuristics
 from pddl.parser import Parser
 import search
 import tools
+import json
+
 
 
 SEARCHES = {
@@ -43,10 +45,14 @@ SEARCHES = {
     "ids": search.iterative_deepening_search,
     "sat": search.sat_solve,
 }
-
+PDDL_GLOBAL_PATH = '/home/cxt/Documents/research/affordance-controller/furniture/task_planner/'
+DEFAULT_DOMAIN = PDDL_GLOBAL_PATH + 'furniture_assembly_domain/domain.pddl'
 
 NUMBER = re.compile(r"\d+")
 
+with open(PDDL_GLOBAL_PATH + 'furniture_assembly_domain/name_mapping.json', 'r') as f:
+    NAME_MAPPING = json.load(f)
+    
 
 def get_heuristics():
     """
@@ -204,6 +210,28 @@ def validate_solution(domain_file, problem_file, solution_file):
         logging.warning("Plan NOT correct")
     return exitcode == 0
 
+
+def plan_sequence(obj, domain=DEFAULT_DOMAIN, search=SEARCHES['astar'], heuristic=HEURISTICS['hff']):
+    problem = domain.replace('domain.pddl', obj + '_task.pddl')
+    solution = search_plan(
+        domain,
+        problem,
+        search,
+        heuristic,
+        use_preferred_ops=heuristic == "hffpo",
+    )
+    name_map = NAME_MAPPING[obj]
+    action_sequence = []
+    for s in solution:
+        action = s.name
+        words = action.split(' ')
+        if len(words) == 4:  # pick-up-from-floor robot-gripper part-handle part
+            action_sequence.append(['grasp', 'left', name_map[words[-1][:-1]]])
+        elif len(words) == 6:  # screw-into/connect-to robot-gripper part1-site part1 part2-site part2
+            move = 'screw' if words[0][1:] == 'screw-into' else 'connect'
+            action_sequence.append([move, 'left', name_map[words[2]], name_map[words[4]]])
+    return action_sequence
+    
 
 def main():
     # Commandline parsing

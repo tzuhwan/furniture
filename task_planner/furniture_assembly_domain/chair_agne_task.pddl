@@ -6,7 +6,7 @@
 		leg1 leg2 - chair-leg
 		leg1-base leg2-base seat-base - handle-part
 		leg1-connect leg2-connect - action-part
-		seat-connector1 seat-connector2 - tool-part
+		seat-connector leg1-connector - tool-part
 		robot-gripper - gripper
 	)
 
@@ -27,8 +27,8 @@
 
 		(part-of leg1-connect leg1)
         (part-of leg2-connect leg2)
-        (part-of seat-connector1 seat)
-        (part-of seat-connector2 seat)
+        (part-of seat-connector seat)
+        (part-of leg1-connector seat)
 
 		(affords-picking seat-base)
 		(affords-picking leg1-base)
@@ -36,8 +36,8 @@
 
 		(affords-connecting leg1-connect)
         (affords-connecting leg2-connect)
-		(affords-connecting-to leg1 seat-connector1 seat)
-        (affords-connecting-to leg2 seat-connector2 seat)
+		(affords-connecting-to leg1 seat-connector seat)
+        (affords-connecting-to leg2 leg1-connector seat)
 	)
 
 	(:goal (and (connected-to leg1 seat)

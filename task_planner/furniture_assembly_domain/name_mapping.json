@@ -1,45 +1,89 @@
 {
-    "9_table_lack": {
+    "table_lack": {
         "leg1": "1_table_leg1",
         "leg2": "2_table_leg2",
         "leg3": "3_table_leg3",
         "leg4": "4_table_leg4",
-        "top": "5_table_top"
+        "top": "5_table_top",
+        "leg1-screw": "leg1-table,0,90,180,270,conn_site",
+        "leg2-screw": "leg2-table,0,90,180,270,conn_site",
+        "leg3-screw": "leg3-table,0,90,180,270,conn_site",
+        "leg4-screw": "leg4-table,0,90,180,270,conn_site",
+        "top-hole1": "table-leg1,0,90,180,270,conn_site",
+        "top-hole2": "table-leg2,0,90,180,270,conn_site",
+        "top-hole3": "table-leg3,0,90,180,270,conn_site",
+        "top-hole4": "table-leg4,0,90,180,270,conn_site"
     },
-    "8_table_klubbo": {
+    "table_klubbo": {
         "leg1": "1_table_leg1",
         "leg2": "2_table_leg2",
         "leg3": "3_table_leg3",
         "leg4": "4_table_leg4",
-        "top": "5_table_top"
+        "top": "5_table_top",
+        "leg1-connect": "leg1-table,0,conn_site",
+        "leg2-connect": "leg2-table,0,conn_site",
+        "leg3-connect": "leg3-table,0,conn_site",
+        "leg4-connect": "leg4-table,0,conn_site",
+        "top-connector1": "table-leg1,0,conn_site",
+        "top-connector2": "table-leg2,0,conn_site",
+        "top-connector3": "table-leg3,0,conn_site",
+        "top-connector4": "table-leg4,0,conn_site"
     },
-    "7_swivel_chair": {
+    "swivel_chair": {
         "base": "1_chair_base",
         "column": "2_chair_column",
-        "seat": "3_chair_seat"
+        "seat": "3_chair_seat",
+        "seat-connect": "seat-column,conn_site2",
+        "column-screw": "column-base,conn_site1",
+        "column-connector": "column-seat,conn_site2",
+        "base-hole": "base-column,conn_site1"
     },
-    "5_shelf_ivar": {
+    "shelf_ivar": {
         "column": "1_column",
         "box1": "2_box1",
         "box2": "3_box2",
         "box3": "4_box3",
         "box4": "5_box4",
-        "box5": "6_box5"
+        "box5": "6_box5",
+        "box1-connect": "box1-col,0,conn_site",
+        "box2-connect": "box2-col,0,conn_site",
+        "box3-connect": "box3-col,0,conn_site",
+        "box4-connect": "box4-col,0,conn_site",
+        "box5-connect": "box5-col,0,conn_site",
+        "column-connector1": "col-box1,0,conn_site",
+        "column-connector2": "col-box2,0,conn_site",
+        "column-connector3": "col-box3,0,conn_site",
+        "column-connector4": "col-box4,0,conn_site",
+        "column-connector5": "col-box5,0,conn_site"
     },
-    "4_desk_mikael": {
+    "desk_mikael": {
         "left-plane": "1_leftplane",
         "right-plane": "2_rightplane",
         "drawer": "3_drawer",
-        "top-plane": "4_topplane"
+        "top-plane": "4_topplane",
+        "left-plane-connect": "leftplane-topplane,0,conn_site",
+        "right-plane-connect": "rightplane-topplane,0,conn_site",
+        "drawer-connect": "drawer-leftplane,0,180,conn_site",
+        "top-plane-connector-left": "topplane-leftplane,0,conn_site",
+        "top-plane-connector-right": "topplane-rightplane,0,conn_site",
+        "left-plane-connector": "leftplane-drawer,0,180,conn_site"
     },
-    "2_chair_bernhard": {
+    "chair_bernhard": {
         "left-leg": "1_chair_leg_left",
         "right-leg": "2_chair_leg_right",
-        "seat": "3_chair_seat"
+        "seat": "3_chair_seat",
+        "left-leg-connect": "leg_left-seat,0,conn_site1",
+        "right-leg-connect": "leg_right-seat,0,conn_site2",
+        "seat-connector-left": "seat-leg_left,0,conn_site1",
+        "seat-connector-right": "seat-leg_right,0,conn_site2"
     },
-    "1_chair_agne": {
+    "chair_agne": {
         "leg1": "1_leg1",
         "leg2": "2_leg2",
-        "seat": "3_seat"
+        "seat": "3_seat",
+        "leg1-connect": "leg1-seat,conn_site",
+        "leg2-connect": "leg2-leg1,0,180,conn_site",
+        "seat-connector": "seat-leg1,conn_site",
+        "leg1-connector": "leg1-leg2,0,180,conn_site"
     }
 }

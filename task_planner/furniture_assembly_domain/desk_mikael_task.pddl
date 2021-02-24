@@ -1,11 +1,12 @@
 (define (problem table-assembly-full)
 	(:domain furniture-assembly)
+    ;todo: drawer has connection to leftplane AND rightplane, need to extend connection constraints (connect to left plane temporarily)
 	(:objects
 		left-plane right-plane top-plane - desk-plane
 		drawer - desk-drawer
 		left-plane-base right-plane-base top-plane-base drawer-base - handle-part
 		left-plane-connect right-plane-connect drawer-connect - action-part
-		top-plane-connector1 top-plane-connector2 top-plane-connector3 - tool-part
+		top-plane-connector-left top-plane-connector-right left-plane-connector - tool-part
 		robot-gripper - gripper
 	)
 
@@ -31,9 +32,9 @@
 		(part-of right-plane-connect right-plane)
 		(part-of drawer-connect drawer)
 
-        (part-of top-plane-connector1 top-plane)
-        (part-of top-plane-connector2 top-plane)
-        (part-of top-plane-connector3 top-plane)
+        (part-of top-plane-connector-left top-plane)
+        (part-of top-plane-connector-right top-plane)
+        (part-of left-plane-connector left-plane)
 
 		(affords-picking left-plane-base)
 		(affords-picking right-plane-base)
@@ -43,14 +44,14 @@
 		(affords-connecting left-plane-connect)
         (affords-connecting right-plane-connect)
         (affords-connecting drawer-connect)
-		(affords-connecting-to left-plane top-plane-connector1 top-plane)
-        (affords-connecting-to right-plane top-plane-connector2 top-plane)
-        (affords-connecting-to drawer top-plane-connector3 top-plane)
+		(affords-connecting-to left-plane top-plane-connector-left top-plane)
+        (affords-connecting-to right-plane top-plane-connector-right top-plane)
+        (affords-connecting-to drawer left-plane-connector left-plane)
 	)
 
 	(:goal (and (connected-to left-plane top-plane)
 				(connected-to right-plane top-plane)
-                (connected-to drawer top-plane)
+                (connected-to drawer left-plane)
 		   	)
 	)
 )

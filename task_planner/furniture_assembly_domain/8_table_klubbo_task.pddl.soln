@@ -1,8 +1,0 @@
-(pick-up-from-floor robot-gripper table-leg4-base table-leg4)
-(connect-to robot-gripper table-leg4-connect table-leg4 table-klubbo-top-connector4 table-klubbo-top)
-(pick-up-from-floor robot-gripper table-leg1-base table-leg1)
-(connect-to robot-gripper table-leg1-connect table-leg1 table-klubbo-top-connector1 table-klubbo-top)
-(pick-up-from-floor robot-gripper table-leg2-base table-leg2)
-(connect-to robot-gripper table-leg2-connect table-leg2 table-klubbo-top-connector2 table-klubbo-top)
-(pick-up-from-floor robot-gripper table-leg3-base table-leg3)
-(connect-to robot-gripper table-leg3-connect table-leg3 table-klubbo-top-connector3 table-klubbo-top)

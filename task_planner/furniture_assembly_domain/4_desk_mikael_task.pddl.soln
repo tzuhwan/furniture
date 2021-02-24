@@ -1,6 +1,0 @@
-(pick-up-from-floor robot-gripper left-plane-base left-plane)
-(connect-to robot-gripper left-plane-connect left-plane top-plane-connector1 top-plane)
-(pick-up-from-floor robot-gripper right-plane-base right-plane)
-(connect-to robot-gripper right-plane-connect right-plane top-plane-connector2 top-plane)
-(pick-up-from-floor robot-gripper drawer-base drawer)
-(connect-to robot-gripper drawer-connect drawer top-plane-connector3 top-plane)

@@ -18,8 +18,14 @@ from env.controllers import BaxterAlignmentController
 from env.controllers import BaxterRotationController
 
 import env.transform_utils as T
-from object_files.scripts.read_local_pose import PoseReader
-from task_planner.pyperplan import pyperplan
+path = os.getcwd()
+os.chdir('./object_files/scripts')
+from read_local_pose import PoseReader
+os.chdir(path)
+os.chdir('./task_planner/pyperplan')
+import pyperplan
+os.chdir(path)
+del path
 
 """
 Baxter robot environment with furniture assembly task.
@@ -101,6 +107,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             )
         self.random_place_objects(x_range=[-0.4, 0.4], y_range=[-0.2, 0.4])
         
+        raw_name = env.models.furniture_names[self._furniture_id]
+        self.object = raw_name[:raw_name.rfind('_')]
+        self._actions = pyperplan.plan_sequence(self.object)
         
         self.default_eef_mat = {'left': self.pose_in_base_from_name('left_gripper_base'), 'right': self.pose_in_base_from_name('right_gripper_base')}
         left_gripper_pose = (self.pose_in_base_from_name('l_gripper_l_finger_tip') + self.pose_in_base_from_name('l_gripper_r_finger_tip')) / 2  # orientations are the same
@@ -119,7 +128,6 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             self.render()
         
         if config.furniture_id == 7: # swivel_chair:
-            self.object = '7_swivel_chair'
             self._actions = [
                 ['side', 'left'],    # move arm to the side to clear the place
                 ['grasp', 'right', '2_chair_column'],
@@ -212,7 +220,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             self._action_sequence.append(("Baxter6DPoseController", (action[1], grasp_pose[0], grasp_pose[1])))
             self._action_sequence.append(("close-gripper", action[1]))
             self._action_sequence.append(("Baxter6DPoseController", (action[1], post_grasp_pose[0], post_grasp_pose[1])))
-        elif action[0] == 'connect':
+        elif action[0] in ['connect', 'screw']:  # todo: develop rotation controller for screw motion
             m_site = action[2]
             t_site = action[3]
             target_site_qpos = self._site_xpos_xquat(t_site)
