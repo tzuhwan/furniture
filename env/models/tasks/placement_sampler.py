@@ -110,7 +110,7 @@ class UniformRandomSampler(ObjectPositionSampler):
             horizontal_radius = obj_mjcf.get_horizontal_radius(obj_name)
             bottom_offset = obj_mjcf.get_bottom_offset(obj_name)
             success = False
-            for i in range(1000):  # 1000 retries
+            for i in range(10000):  # 1000 retries
                 object_x = self.sample_x(horizontal_radius)
                 object_y = self.sample_y(horizontal_radius)
                 # objects cannot overlap

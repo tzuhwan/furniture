@@ -67,13 +67,13 @@ class PoseReader(object):
                 '3_chair_seat': [[12], ['chair_bernhard_seat_grasp_pose']]
             },
             '4_desk_mikael': {
-                '1_leftplane': [[8], ['desk_mikael_left_plane_grasp_pose']],
-                '2_rightplane': [[8], ['desk_mikael_left_plane_grasp_pose'], '1_leftplane'],
+                '2_leftplane': [[8], ['desk_mikael_left_plane_grasp_pose'], '1_leftplane'],
+                '1_rightplane': [[8], ['desk_mikael_left_plane_grasp_pose'], '1_leftplane'], # coppeliasim object name is different
                 '3_drawer': [[6], ['desk_mikael_drawer_grasp_pose']],
                 '4_topplane': [[8], ['desk_mikael_top_plane_grasp_pose']],
             },
             '5_shelf_ivar': {
-                '2_box1': [[16], ['shelf_ivar_box_grasp_pose'], 'box'], # coppeliasim object name is different
+                '2_box1': [[16], ['shelf_ivar_box_grasp_pose'], 'box'],
                 '3_box2': [[16], ['shelf_ivar_box_grasp_pose'], 'box'],
                 '4_box3': [[16], ['shelf_ivar_box_grasp_pose'], 'box'],
                 '5_box4': [[16], ['shelf_ivar_box_grasp_pose'], 'box'],

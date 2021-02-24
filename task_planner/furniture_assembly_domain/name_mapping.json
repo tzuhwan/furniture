@@ -57,8 +57,8 @@
         "column-connector5": "col-box5,0,conn_site"
     },
     "desk_mikael": {
-        "left-plane": "1_leftplane",
-        "right-plane": "2_rightplane",
+        "left-plane": "2_leftplane",
+        "right-plane": "1_rightplane",
         "drawer": "3_drawer",
         "top-plane": "4_topplane",
         "left-plane-connect": "leftplane-topplane,0,conn_site",
