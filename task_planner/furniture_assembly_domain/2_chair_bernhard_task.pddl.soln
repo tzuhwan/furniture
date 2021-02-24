@@ -1,0 +1,4 @@
+(pick-up-from-floor robot-gripper right-leg-base right-leg)
+(connect-to robot-gripper right-leg-connect right-leg seat-connector-right seat)
+(pick-up-from-floor robot-gripper left-leg-base left-leg)
+(connect-to robot-gripper left-leg-connect left-leg seat-connector-left seat)

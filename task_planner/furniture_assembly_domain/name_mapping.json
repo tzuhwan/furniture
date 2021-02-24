@@ -1,0 +1,45 @@
+{
+    "9_table_lack": {
+        "leg1": "1_table_leg1",
+        "leg2": "2_table_leg2",
+        "leg3": "3_table_leg3",
+        "leg4": "4_table_leg4",
+        "top": "5_table_top"
+    },
+    "8_table_klubbo": {
+        "leg1": "1_table_leg1",
+        "leg2": "2_table_leg2",
+        "leg3": "3_table_leg3",
+        "leg4": "4_table_leg4",
+        "top": "5_table_top"
+    },
+    "7_swivel_chair": {
+        "base": "1_chair_base",
+        "column": "2_chair_column",
+        "seat": "3_chair_seat"
+    },
+    "5_shelf_ivar": {
+        "column": "1_column",
+        "box1": "2_box1",
+        "box2": "3_box2",
+        "box3": "4_box3",
+        "box4": "5_box4",
+        "box5": "6_box5"
+    },
+    "4_desk_mikael": {
+        "left-plane": "1_leftplane",
+        "right-plane": "2_rightplane",
+        "drawer": "3_drawer",
+        "top-plane": "4_topplane"
+    },
+    "2_chair_bernhard": {
+        "left-leg": "1_chair_leg_left",
+        "right-leg": "2_chair_leg_right",
+        "seat": "3_chair_seat"
+    },
+    "1_chair_agne": {
+        "leg1": "1_leg1",
+        "leg2": "2_leg2",
+        "seat": "3_seat"
+    }
+}

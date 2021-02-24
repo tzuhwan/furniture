@@ -1,0 +1,4 @@
+(pick-up-from-floor robot-gripper seat-edge seat)
+(connect-to robot-gripper seat-connect seat column-connector column)
+(pick-up-from-floor robot-gripper column-end column)
+(screw-into robot-gripper column-screw column base-hole base)

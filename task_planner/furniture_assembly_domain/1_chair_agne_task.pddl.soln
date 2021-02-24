@@ -1,0 +1,4 @@
+(pick-up-from-floor robot-gripper leg1-base leg1)
+(connect-to robot-gripper leg1-connect leg1 seat-connector1 seat)
+(pick-up-from-floor robot-gripper leg2-base leg2)
+(connect-to robot-gripper leg2-connect leg2 seat-connector2 seat)
