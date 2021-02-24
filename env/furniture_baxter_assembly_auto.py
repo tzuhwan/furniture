@@ -99,7 +99,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                            [0.23653631, -0.08022969, 0.14596923],
                            [1.0, 0.0, 0.0, 0.0]
             )
-        self.random_place_objects()
+        self.random_place_objects(x_range=[-0.4, 0.4], y_range=[-0.2, 0.4])
         
         
         self.default_eef_mat = {'left': self.pose_in_base_from_name('left_gripper_base'), 'right': self.pose_in_base_from_name('right_gripper_base')}
@@ -121,12 +121,12 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         if config.furniture_id == 7: # swivel_chair:
             self.object = '7_swivel_chair'
             self._actions = [
-                ('side', 'left'),    # move arm to the side to clear the place
-                ('grasp', 'right', '2_chair_column'),
-                ('connect', 'right', 'column-base,conn_site1', 'base-column,conn_site1'),  # assumption: has grasped first part
-                ('side', 'right'), 
-                ('grasp', 'left', '3_chair_seat'),
-                ('connect', 'left', 'seat-column,conn_site2', 'column-seat,conn_site2'),
+                ['side', 'left'],    # move arm to the side to clear the place
+                ['grasp', 'right', '2_chair_column'],
+                ['connect', 'right', 'column-base,conn_site1', 'base-column,conn_site1'],  # assumption: has grasped first part
+                ['side', 'right'],
+                ['grasp', 'left', '3_chair_seat'],
+                ['connect', 'left', 'seat-column,conn_site2', 'column-seat,conn_site2'],
             ]
 
         from util.video_recorder import VideoRecorder
@@ -136,7 +136,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         for action in self._actions:
             action_times = 0
             while 1:
-                success = self.single_action(action, action_times)
+                success = self.single_action(config, action, action_times)
                 if success:
                     break
                 action_times += 1
@@ -148,8 +148,10 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
 
         return
 
-    def single_action(self, action, action_times):
+    def single_action(self, config, action, action_times):
         self._action_sequence = []
+        left_hand_pose_mat = self.pose_in_base_from_name('left_gripper_base')
+        right_hand_pose_mat = self.pose_in_base_from_name('right_gripper_base')
         if action[0] == 'grasp':
             self.gripper_grabs = [-1, -1]
             # 1. object part grasp pose transformed to workspace coordinate
@@ -157,6 +159,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             partname = part[part.rfind('_') + 1:]
             local_grasp_pose = self.grasp_pose_dict[self.object][part]
             part_pose_mat = self.pose_in_base_from_name(part)
+            left_distance = np.linalg.norm(np.array(part_pose_mat)[:3, 3]-left_hand_pose_mat[:3, 3], axis=-1)
+            right_distance = np.linalg.norm(np.array(part_pose_mat)[:3, 3]-right_hand_pose_mat[:3, 3], axis=-1)
+            action[1] = 'left' if left_distance < right_distance else 'right'
             local_grasp_pose_mat = [T.pose2mat((pose[:3], pose[3:])) for pose in local_grasp_pose]
             ws_grasp_pose_mat = [T.pose_in_A_to_pose_in_B(grasp_pose_mat0, part_pose_mat) for grasp_pose_mat0 in local_grasp_pose_mat]
             found_downwards_grasppose = False
@@ -170,6 +175,27 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             if not found_downwards_grasppose:
                 print('cannot find downwards grasppose')
 
+            if len(potential_pose)<=action_times:
+                # using helper pose
+                if config.furniture_id == 7:
+                    helper_pose = local_grasp_pose[:2]
+                    helper_x_axis = part_pose_mat[:3, 2]
+                    if np.abs(np.dot(helper_x_axis,[0, 0, -1]))<0.8:
+                        helper_y_axis = np.cross(helper_x_axis, [0, 0, -1])
+                        helper_z_axis = np.cross(helper_y_axis, part_pose_mat[:3, 2])
+                        if helper_z_axis[2] > 0:
+                            helper_y_axis = -1*helper_y_axis
+                            helper_z_axis = -1*helper_z_axis
+                        hand_pose_mat = left_hand_pose_mat if action[1] == 'left' else right_hand_pose_mat
+                        distance = np.linalg.norm(np.array(helper_pose)[:,:3]-hand_pose_mat[:3, 3], axis=-1)
+                        helper_pos = np.array(helper_pose[np.argmin(distance)][:3])
+                        final_helper_pose_mat = np.zeros((4, 4))
+                        final_helper_pose_mat[3, 3] = 1
+                        final_helper_pose_mat[:3, 3] = helper_pos
+                        final_helper_pose_mat[:3, 0] = helper_x_axis
+                        final_helper_pose_mat[:3, 1] = helper_y_axis
+                        final_helper_pose_mat[:3, 2] = helper_z_axis
+                        potential_pose.append(final_helper_pose_mat)
             obj_grasp_mat = potential_pose[action_times]
             # 2. plus offset to gripper_base which is end effector in controller, add other offsets for pre- and post- grasp pose
             obj2eef_mat = self.left_obj2eef_mat if action[1] == 'left' else self.right_obj2eef_mat
@@ -204,7 +230,10 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             # new_pos, new_quat = T.transform_to_target_quat(moving_site_qpos, self._get_qpos(m_body_name), target_site_qpos[3:])
             translation = target_site_qpos_mat[:3, 3] - moving_site_qpos_mat[:3, 3]
             rotation = (target_site_qpos_mat[:3, :3]).transpose().dot(moving_site_qpos_mat[:3, :3])
-            hand_pose_mat = self.pose_in_base_from_name('left_gripper_base') if action[1] == 'left' else self.pose_in_base_from_name('right_gripper_base')
+            left_distance = np.linalg.norm(np.array(moving_site_qpos_mat)[:3, 3]-left_hand_pose_mat[:3, 3], axis=-1)
+            right_distance = np.linalg.norm(np.array(moving_site_qpos_mat)[:3, 3]-right_hand_pose_mat[:3, 3], axis=-1)
+            action[1] = 'left' if left_distance < right_distance else 'right'
+            hand_pose_mat = left_hand_pose_mat if action[1] == 'left' else right_hand_pose_mat
             target_hand_pose_mat = hand_pose_mat.copy()
             target_hand_pose_mat[:3, 3] += translation
             # target_hand_pose_mat[:3,:3] = T.pose2mat((new_pos,new_quat))[:3, :3].dot(target_hand_pose_mat[:3,:3])
