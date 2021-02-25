@@ -45,7 +45,7 @@ SEARCHES = {
     "ids": search.iterative_deepening_search,
     "sat": search.sat_solve,
 }
-PDDL_GLOBAL_PATH = '/home/cxt/Documents/research/affordance-controller/furniture/task_planner/'
+PDDL_GLOBAL_PATH = '/home/kz/Documents/Research/furniture/task_planner/'
 DEFAULT_DOMAIN = PDDL_GLOBAL_PATH + 'furniture_assembly_domain/domain.pddl'
 
 NUMBER = re.compile(r"\d+")

@@ -56,15 +56,17 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         self.grasp_offset = 0.05 + self.hold_offset
         self.lift_offset = 0.05 # 0.01 is even hard for some cases
         self.x_range = {'1': [-0.2, 0.2], '2': [-0.2, 0.2], '4': [-0.5, 0.5], '5': [-0.2, 0.2], '7': [-0.2, 0.2], '8': [-0.5, 0.5], '9': [-0.5, 0.5]}
-        self.y_range = {'1': [-0.2, 0.2], '2': [-0.1, 0.1], '4': [-0.3, 0.3], '5': [-0.2, 0.2], '7': [-0.1, 0.1], '8': [-0.3, 0.3], '9': [-0.3, 0.3]}
+        self.y_range = {'1': [-0.2, 0.2], '2': [-0.1, 0.1], '4': [-0.3, 0.3], '5': [-0.2, 0.2], '7': [-0.1, 0.1], '8': [-0.3, 0.3], '9': [-0.2, 0.2]}
         self.n_iter_random_objects = 1000
     """
     Use existing 2D random position with standing random z rotation as pose initialization,
     TODO: add lying down pose, make table, desk top plane upside-down, close to center, chair_agne_seat upside-down
     """
     def random_place_objects(self):
-        self.mujoco_model.initializer.x_range = self.x_range[self._furniture_id]
-        self.mujoco_model.initializer.y_range = self.y_range[self._furniture_id]
+        self.mujoco_model.initializer.x_range = self.x_range[str(self._furniture_id)]
+        self.mujoco_model.initializer.y_range = self.y_range[str(self._furniture_id)]
+        part_x_range = self.x_range[str(self._furniture_id)]
+        part_y_range = self.y_range[str(self._furniture_id)]
         collision = True  # repeat random generation till parts are not in collision at first
         i_random = 0
         while collision and i_random < self.n_iter_random_objects:
@@ -80,7 +82,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             self.vr.add(self.render('rgb_array'))
             for obj_name in self.mujoco_objects:
                 pos = self._get_qpos(obj_name)
-                if not ((pos[0] >= self.x_range[0] and pos[0] <= self.x_range[1]) and (pos[1] >= self.y_range[0] and pos[1] <= self.y_range[1])):
+                if not ((pos[0] >= part_x_range[0] and pos[0] <= part_x_range[1]) and (pos[1] >= part_y_range[0] and pos[1] <= part_y_range[1])):
                     collision = True
                     break
             for (part1, part2) in list(combinations(self.mujoco_objects, 2)):
@@ -178,7 +180,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             self.tried_pose = []
             while self.action_times <5 :
                 success = self.single_action(config, action, self.action_times)
-                if success:
+                if success or self.action_times >= 5:
                     break
                 self.action_times += 1
             if self.action_times >= 5:
@@ -263,7 +265,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             post_grasp_pose = T.mat2pose(post_grasp_pose_mat)
             target_pose_mat = self.default_eef_mat[action[1]]
             target_pose = T.mat2pose(target_pose_mat)
-            self._action_sequence.append(("Baxter6DPoseController", (action[1], target_pose[0], target_pose[1])))
+            self._action_sequence.append(("Baxter6DPoseController", (action[1], target_pose[0], target_pose[1], 1e-3)))
             self._action_sequence.append(("Baxter6DPoseController", (action[1], pre_grasp_pose[0], pre_grasp_pose[1])))
             self._action_sequence.append(("Baxter6DPoseController", (action[1], grasp_pose[0], grasp_pose[1])))
             self._action_sequence.append(("close-gripper", action[1]))
@@ -328,12 +330,20 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             action = _action_sequence[i]
             run = ""
             if action[0] == "Baxter6DPoseController":
-                control_arm, goal_pos, goal_quat = action[1]
-                self._controller = Baxter6DPoseController(
-                    bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
-                    robot_jpos_getter=self._robot_jpos_getter,
-                    verbose=False
-                )
+                if len(action[1])==3:
+                    control_arm, goal_pos, goal_quat = action[1]
+                    self._controller = Baxter6DPoseController(
+                        bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
+                        robot_jpos_getter=self._robot_jpos_getter,
+                        verbose=False
+                    )
+                else:
+                    control_arm, goal_pos, goal_quat, potential = action[1]
+                    self._controller = Baxter6DPoseController(
+                        bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
+                        robot_jpos_getter=self._robot_jpos_getter,
+                        verbose=False, potential = potential
+                    )
                 self._controller.set_goal(control_arm, goal_pos, goal_quat)
                 run = "controller"
             elif action[0] == "Baxter3DPositionController":
@@ -412,7 +422,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     # render
                     self.vr.add(self.render('rgb_array'))
                     potentials[num_moving%20] = self._controller.potential()
-                    if np.std(potentials) <= 1e-5 or np.all(np.diff(potentials) > 0):
+                    if np.std(potentials) <= 1e-7 or np.all(np.diff(potentials) > 0):
                         success = False
                         break
                     num_moving += 1

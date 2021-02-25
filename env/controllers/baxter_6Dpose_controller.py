@@ -36,7 +36,7 @@ class Baxter6DPoseController(BaxterIKController):
 
 	Inherited from Controller base class.
 	"""
-	def __init__(self, bullet_data_path, robot_jpos_getter, verbose=True, debug=False):
+	def __init__(self, bullet_data_path, robot_jpos_getter, verbose=True, debug=False, potential=3e-5):
 		print("Baxter6DPoseController: Initializing 6DPose Controller")
 
 		# initialize super class
@@ -50,7 +50,7 @@ class Baxter6DPoseController(BaxterIKController):
 		self.max_potential = 100
 
 		# potential threshold (potential less than this means no update will be performed)
-		self.potential_threshold = 0.0003 # 0.0005
+		self.potential_threshold = potential # 0.0005
 
 		# controller objective met flag
 		self.objective_met = False
@@ -246,8 +246,9 @@ class Baxter6DPoseController(BaxterIKController):
 
 		# compute potential
 		pot = 0.5 * dist * dist
-		print("Baxter6DPoseController: potential %f" % pot)
-		print("Baxter6DPoseController: position distance %f, rotation distance %f" % (dist_pos, dist_quat))
+		if self.debug:
+			print("Baxter6DPoseController: potential %f" % pot)
+			print("Baxter6DPoseController: position distance %f, rotation distance %f" % (dist_pos, dist_quat))
 		return min(pot, self.max_potential)
 
 	"""
