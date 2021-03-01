@@ -212,6 +212,26 @@ class BaxterObject6DPoseController(BaxterIKController):
 		return
 
 	"""
+	TODO
+	"""
+	def set_body_poses(self, body_pose_dict):
+		# initialize dictionary of body names to poses in world frame
+		self.body_pose_dict_world = {}
+
+		# convert poses to world frame
+		for body in body_pose_dict.keys():
+			# get pos and quat in base frame from matrix
+			body_pos, body_quat = T.mat2pose(body_pose_dict[body])
+			# convert to world frame
+			body_pos_world, body_quat_world = self.bullet_base_pose_to_world_pose(
+				(body_pos, body_quat)
+			)
+			# set pose in world frame in dictionary
+			self.body_pose_dict_world[body] = (body_pos_world, body_quat_world)
+
+		return
+
+	"""
 	Sets the pose of the given object name in the base frame.
 
 	@param name, the name of the body whose pose is being set
@@ -238,7 +258,7 @@ class BaxterObject6DPoseController(BaxterIKController):
 		)
 		self.object_curr_pos = object_pos_world
 		self.object_curr_quat = object_quat_world
-		if self.debug:
+		if True:#self.debug:
 			print("BaxterObject6DPoseController:", self.object_name, "pos in world: ", self.object_curr_pos)
 			print("BaxterObject6DPoseController:", self.object_name, "rot in world: ", self.object_curr_quat)
 		return
@@ -267,6 +287,22 @@ class BaxterObject6DPoseController(BaxterIKController):
 		self.arm_step = arm_speed
 		print("BaxterObject6DPoseController: Set new arm speed")
 		return
+
+	"""
+	Gets relevant joint info.
+	"""
+	def get_relevant_joint_info(self):
+		# compute joint info for relevant joints
+		joint_infos = [p.getJointInfo(self.ik_robot, i) for i in self.actual]
+
+		# get relevant joint info
+		joint_idxs = [i[0] for i in joint_infos]
+		joint_names = [i[1] for i in joint_infos]
+		joint_lower = [i[8] for i in joint_infos]
+		joint_upper = [i[9] for i in joint_infos]
+		joint_ranges = [(i[9] - i[8]) for i in joint_infos]
+
+		return zip(joint_idxs, joint_names, joint_lower, joint_upper, joint_ranges)
 
 	"""
 	Returns the object being controlled by the controller.
@@ -400,40 +436,79 @@ class BaxterObject6DPoseController(BaxterIKController):
 		lidx = self.actual.index(38)
 		ridx = self.actual.index(20)
 
-		# get columns for left and right wrists from Jacobian
-		lcol = []
-		rcol = []
-		for row in J:
-			lcol.append(row[lidx])
-			rcol.append(row[ridx])
-
-		# compute new column with object as end-effector
-		# get joint axis w.r.t. world for control arm
+		# only columns corresponding to kinematic chain leading to controlled end-effector need to be updated
 		if self.control_arm == "left":
-			joint_axis_world = lcol[3:6]
+			jstart_idx = ridx+1
+			jend_idx = lidx+1
 		else: # self.control_arm == "right"
-			joint_axis_world = rcol[3:6]
+			jstart_idx = 0
+			jend_idx = ridx+1
 
-		# "end-effector" (object) origin w.r.t. world - joint (same as end-effector) origin w.r.t. world
-		o = self.object_curr_pos - self.curr_pos
-		# compute linear component
-		lin = np.cross(joint_axis_world, o)
-		# compute angular component
-		ang = joint_axis_world
-		# compute new column
-		Jcol_object = np.hstack([lin, ang])
+		# change appropriate columns of Jacobian
+		for i in range(jstart_idx, jend_idx):
+			# get the column from the Jacobian
+			col = []
+			for row in J:
+				col.append(row[i])
 
-		# get index for new column in Jacobian
-		if self.control_arm == "left":
-			idx = lidx
-		else: # self.control_arm == "right"
-			idx = ridx
+			# compute new column with object as end-effector
+			# get joint axis w.r.t. world
+			joint_axis_world = col[3:6]
 
-		# set new column in Jacobian
-		for row in range(len(J)):
-			J[row][idx] = Jcol_object[row]
+			# get pose of link controlled by joint in world frame
+			info = p.getJointInfo(self.ik_robot, self.actual[i])
+			controlled_link = info[12]
+			joint_origin_world, _ = self.body_pose_dict_world[controlled_link.decode("utf-8")] # controlled link has same pose as parent joint
+
+			# "end-effector" (object) origin w.r.t. world - joint origin w.r.t. world
+			o = self.object_curr_pos - joint_origin_world
+			# compute linear component
+			lin = np.cross(joint_axis_world, o)
+			# compute angular component
+			ang = joint_axis_world
+			# compute new column
+			new_col = np.hstack([lin, ang])
+
+			# set new column in Jacobian
+			for r in range(len(J)):
+				J[r][i] = new_col[r]
 
 		return J
+
+		# # get columns for left and right wrists from Jacobian
+		# lcol = []
+		# rcol = []
+		# for row in J:
+		# 	lcol.append(row[lidx])
+		# 	rcol.append(row[ridx])
+
+		# # compute new column with object as end-effector
+		# # get joint axis w.r.t. world for control arm
+		# if self.control_arm == "left":
+		# 	joint_axis_world = lcol[3:6]
+		# else: # self.control_arm == "right"
+		# 	joint_axis_world = rcol[3:6]
+
+		# # "end-effector" (object) origin w.r.t. world - joint (same as end-effector) origin w.r.t. world
+		# o = self.object_curr_pos - self.curr_pos
+		# # compute linear component
+		# lin = np.cross(joint_axis_world, o)
+		# # compute angular component
+		# ang = joint_axis_world
+		# # compute new column
+		# Jcol_object = np.hstack([lin, ang])
+
+		# # get index for new column in Jacobian
+		# if self.control_arm == "left":
+		# 	idx = lidx
+		# else: # self.control_arm == "right"
+		# 	idx = ridx
+
+		# # set new column in Jacobian
+		# for row in range(len(J)):
+		# 	J[row][idx] = Jcol_object[row]
+
+		# return J
 
 	"""
 	Compute the target end-effector pose from the given target object pose.

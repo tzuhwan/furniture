@@ -77,8 +77,8 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         # WORKING TO HERE!
         # swivelchair_seatcnct_pos_left = [0.59742394, 0.08848166, 0.64171694]
         # swivelchair_seatcnct_quat_left = [0.71337652, -0.68281197, -0.14455587, 0.06297114]
-        swivelchair_seatpost_pos_left = [0.4, 0.1, -0.5]
-        swivelchair_seatpost_quat_left = [-0.73133093, -0.00037086, -0.00036539, 0.68202257]
+        swivelchair_seatpost_pos_left = [ 0.5700034, 0.33655155, 0.06]
+        swivelchair_seatpost_quat_left = [0.00037086, 0.00036539, 0.73133093, 0.68202258]
         # swivelchair_cnctprep_pos_left = [0.45077123, 0.32370803, 0.25]
         # swivelchair_cnctprep_quat_left = [0.68661902, -0.72083896, -0.08676259, 0.03765338]
         # swivelchair_seatcnct_pos_left = [0.5916167, -0.00193475, 0.51251066]
@@ -239,6 +239,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                         obj = self._controller.get_object_name()
                         obj_pose_matrix = self.pose_in_base_from_name(obj)
                         self._controller.set_object_pose(obj, obj_pose_matrix)
+                        self._controller.set_body_poses(self.get_body_pose_matrices())
                     # compute controller update
                     velocities = self._controller.get_control()
                     # perform controller command
@@ -306,6 +307,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                             obj = self._controller.get_object_name()
                             obj_pose_matrix = self.pose_in_base_from_name(obj)
                             self._controller.set_object_pose(obj, obj_pose_matrix)
+                            self._controller.set_body_poses(self.get_body_pose_matrices())
                         velocities = self._controller.get_control()
                     low_action = np.concatenate([velocities, gripper_grabs])
                     ctrl = self._setup_action(low_action)
@@ -348,6 +350,20 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     if result:
                         return
                     break
+
+    """
+    TODO
+    """
+    def get_body_pose_matrices(self):
+        # initialize dictionary of bodies to poses
+        body_pose_dict = {}
+
+        # get poses of all bodies
+        for body in self.sim.model.body_names:
+            body_pose_dict[body] = self.pose_in_base_from_name(body)
+
+        return body_pose_dict
+
 
 """
 Main function; will not be called when environment is constructed from appropriate demo
