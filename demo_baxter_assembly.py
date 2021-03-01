@@ -47,7 +47,10 @@ def main(args):
         background_name = background_names[0]
 
     # set parameters for the environment (furniture_id, background)
-    env_name = 'FurnitureBaxterAssemblyEnv'
+    if args.plan_compositions:
+    	env_name = 'FurnitureBaxterControllerPlannerEnv'
+    else:
+    	env_name = 'FurnitureBaxterAssemblyEnv'
     args.env = env_name
     args.furniture_id = furniture_id
     args.background = background_name
@@ -59,13 +62,18 @@ def main(args):
     # make environment following arguments
     env = make_env(env_name, args)
 
-    # run assembly of furniture
-    env.run_controller(args)
-    # env.run_manual(args)
+    # run environment
+    if args.plan_compositions:
+    	compositions = env.plan_controller_compositions(args, "left", "screw-into")
+    	print("possible compositions: ", compositions)
+    else:
+    	# run assembly of furniture
+	    env.run_controller(args)
+	    # env.run_manual(args)
 
     # close the environment instance
-    print("Closing FurnitureBaxterAssemblyEnv")
-    print("Thank you for trying FurnitureBaxterAssemblyEnv!")
+    print("Closing %s" % args.env)
+    print("Thank you for trying %s!" % args.env)
     env.close()
 
 """
@@ -76,6 +84,7 @@ def argsparser():
     parser.add_argument('--seed', type=int, default=123)
     parser.add_argument('--debug', type=str2bool, default=False)
     parser.add_argument('--record_video', type=str2bool, default=False)
+    parser.add_argument('--plan_compositions', type=str2bool, default=False)
 
     import config.furniture as furniture_config
     furniture_config.add_argument(parser)

@@ -210,6 +210,22 @@ class BaxterRotationController(BaxterIKController):
 		print("BaxterRotationController: Set new arm speed")
 		return
 
+	"""
+	Gets relevant joint info.
+	"""
+	def get_relevant_joint_info(self):
+		# compute joint info for relevant joints
+		joint_infos = [p.getJointInfo(self.ik_robot, i) for i in self.actual]
+
+		# get relevant joint info
+		joint_idxs = [i[0] for i in joint_infos]
+		joint_names = [i[1] for i in joint_infos]
+		joint_lower = [i[8] for i in joint_infos]
+		joint_upper = [i[9] for i in joint_infos]
+		joint_ranges = [(i[9] - i[8]) for i in joint_infos]
+
+		return zip(joint_idxs, joint_names, joint_lower, joint_upper, joint_ranges)
+
 	#################################################
 	### POTENTIAL FIELD AND CONTROL LAW FUNCTIONS ###
 	#################################################
