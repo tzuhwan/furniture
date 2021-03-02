@@ -103,6 +103,8 @@ class BaxterAlignmentController(BaxterIKController):
 			print("BaxterAlignmentController: Goal met! No update needed.")
 			self.objective_met = True
 			return velocities
+		else:
+			self.objective_met = False
 
 		# compute dq and update state
 		# this is done in iterations, as in BaxterIKController
@@ -531,10 +533,10 @@ class BaxterAlignmentController(BaxterIKController):
 		N = self.get_objective_nullspace()
 
 		# project controller objective into nullspace as numpy array
-		dq_projected_mat = self.matrixMultiply(N, dq_lower_priority)
+		dq_projected = self.matrixMultiply(N, dq_lower_priority) # TODO
 
 		# convert numpy array to list
-		dq_projected = list(dq_projected_mat)
+		# dq_projected = list(dq_projected_mat)
 
 		if self.verbose:
 			print("BaxterAlignmentController: computed %dx1 projected controller command" % len(dq_projected))

@@ -59,13 +59,24 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             ("BaxterRotationController", ("right", 6.283))
         ]
 
+        ### sequence for testing multi-objective behaviors
+        multiobj_align_pos_left = [0.82273044, 0.2, 0.00181328]
+        test_multiobjective_controller_sequence = [
+            (
+                ("BaxterAlignmentController", ("left", "+Z", multiobj_align_pos_left)),
+                ("Baxter3DPositionController", ("left", multiobj_align_pos_left, None))
+            )
+        ]
+
         ### sequence for assembling swivel chair
         swivelchair_poleprep_pos_right = [0.55756265, -0.1, -0.11673727]
         swivelchair_poleprep_quat_right = [-0.58808523, 0.53074937, 0.46539465, 0.39480208]
         swivelchair_polepick_pos_right = [0.53, -0.00189214, -0.11673727]
         swivelchair_polepick_quat_right = [-0.58808523, 0.53074937, 0.46539465, 0.39480208]
-        swivelchair_polepost_pos_right = [0.53, 0.04, -0.04]#[0.65, -0.12, -0.04]
-        swivelchair_polepost_quat_right = [-0.05176196, 0.06610491, 0.77816441, 0.62242348]#[-0.58846033, 0.52953778, 0.46733307, 0.39357843]
+        swivelchair_polepost_pos_right = [0.65, -0.12, -0.04]
+        swivelchair_polepost_quat_right = [-0.58846033, 0.52953778, 0.46733307, 0.39357843]
+        # swivelchair_polepost_pos_right = [0.53, 0.04, -0.04]
+        # swivelchair_polepost_quat_right = [-0.05176196, 0.06610491, 0.77816441, 0.62242348]
         swivelchair_polecnct_pos_right = [0.65, -0.12, -0.115]
         swivelchair_polecnct_quat_right = [-0.58846033, 0.52953778, 0.46733307, 0.39357843]
 
@@ -88,8 +99,12 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             ("Baxter6DPoseController", ("right", swivelchair_poleprep_pos_right, swivelchair_poleprep_quat_right)),
             ("Baxter6DPoseController", ("right", swivelchair_polepick_pos_right, swivelchair_polepick_quat_right)),
             ("close-gripper", "right"),
-            ("BaxterObject6DPoseController", ("right", '2_chair_column', swivelchair_polepost_pos_right, swivelchair_polepost_quat_right)),
-            ("BaxterObject6DPoseController", ("right", '2_chair_column', swivelchair_polecnct_pos_right, swivelchair_polecnct_quat_right)),
+            ("Baxter6DPoseController", ("right", swivelchair_polepost_pos_right, swivelchair_polepost_quat_right)),# ("BaxterObject6DPoseController", ("right", '2_chair_column', swivelchair_polepost_pos_right, swivelchair_polepost_quat_right)),
+            # ("Baxter6DPoseController", ("right", swivelchair_polecnct_pos_right, swivelchair_polecnct_quat_right)),# ("BaxterObject6DPoseController", ("right", '2_chair_column', swivelchair_polecnct_pos_right, swivelchair_polecnct_quat_right)),
+            (
+                ("BaxterAlignmentController", ("right", "+Y", swivelchair_polecnct_pos_right)),
+                ("Baxter3DPositionController", ("right", swivelchair_polecnct_pos_right, None))
+            ),
             ("connect", "")
         ]
         swivelchair_pickseat_sequence = [
@@ -156,7 +171,10 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             # set up action
             action = self._action_sequence[i]
             run = ""
-            if action[0] == "Baxter6DPoseController":
+            if isinstance(action[0], tuple):
+                self.initialize_multiobjective_controllers(action)
+                run = "multiobjective-controller"
+            elif action[0] == "Baxter6DPoseController":
                 control_arm, goal_pos, goal_quat = action[1]
                 self._controller = Baxter6DPoseController(
                     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
@@ -246,6 +264,18 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     self.perform_command(velocities, gripper_grabs, True, (run == "object-controller"))
                     # render
                     vr.add(self.render('rgb_array'))
+            elif run == "multiobjective-controller":
+                objective_met = False
+                # run controller
+                while not objective_met:
+                    # set flag so unity will update
+                    self._unity_updated = False
+                    # compute controller update
+                    velocities, objective_met = self.compute_multiobjective_controller_update()
+                    # perform controller command
+                    self.perform_multiobjective_command(velocities, gripper_grabs)
+                    # render
+                    vr.add(self.render('rgb_array'))
             elif run == "gripper":
                 # set flag so unity will update
                 self._unity_updated = False
@@ -265,7 +295,10 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 # render
                 vr.add(self.render('rgb_array'))
 
-            print("FurnitureBaxterAssemblyEnv: finished action %s" % action[0])
+            if isinstance(action[0], tuple):
+                print("FurnitureBaxterAssemblyEnv: finished action %s" % self.action_string(action))
+            else:
+                print("FurnitureBaxterAssemblyEnv: finished action %s" % action[0])
 
         print("FurnitureBaxterAssemblyEnv: Goal met!")
         time.sleep(2)
@@ -364,6 +397,112 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
 
         return body_pose_dict
 
+    """
+    TODO
+    """
+    def action_string(self, controllers):
+        action = ""
+        # construct action string based on controllers
+        for i in range(len(controllers)):
+            action += controllers[len(controllers)-i-1][0]
+            if i < len(controllers) - 1:
+                action += " <| "
+
+        return action
+
+    """
+    TODO
+    """
+    def initialize_multiobjective_controllers(self, action):
+        self._controllers = []
+        # initialize controllers in action
+        for controller in action:
+            if controller[0] == "Baxter6DPoseController":
+                control_arm, goal_pos, goal_quat = controller[1]
+                self._controllers.append(
+                    Baxter6DPoseController(
+                        bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
+                        robot_jpos_getter=self._robot_jpos_getter,
+                        verbose=False
+                    )
+                )
+                self._controllers[-1].set_goal(control_arm, goal_pos, goal_quat)
+            elif controller[0] == "Baxter3DPositionController":
+                control_arm, goal_pos, goal_quat = controller[1]
+                self._controllers.append(
+                    Baxter3DPositionController(
+                        bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
+                        robot_jpos_getter=self._robot_jpos_getter,
+                        verbose=False
+                    )
+                )
+                self._controllers[-1].set_goal(control_arm, goal_pos, goal_quat)
+            elif controller[0] == "BaxterAlignmentController":
+                control_arm, ee_axis, align_pos = controller[1]
+                self._controllers.append(
+                    BaxterAlignmentController(
+                        bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
+                        robot_jpos_getter=self._robot_jpos_getter,
+                        verbose=False
+                    )
+                )
+                self._controllers[-1].set_goal(control_arm, ee_axis, align_pos)
+            elif controller[0] == "BaxterRotationController":
+                control_arm, rotation = controller[1]
+                self._controllers.append(
+                    BaxterRotationController(
+                        bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
+                        robot_jpos_getter=self._robot_jpos_getter,
+                        verbose=False
+                    )
+                )
+                self._controllers[-1].set_goal(control_arm, rotation)
+            else:
+                print("FurnitureBaxterControllerPlannerEnv: controller type %s not recognized" % controller)
+                raise NameError
+
+        return
+
+    """
+    TODO
+    """
+    def compute_multiobjective_controller_update(self):
+        dq_combined = np.zeros(14)
+        objective_met = []
+        # compute combined control command
+        for i in range(len(self._controllers)):
+            # compute index, from lowest priority to highest
+            idx = len(self._controllers) - i - 1
+            # compute controller command, index from lowest priority to highest
+            dq = self._controllers[idx].get_control()
+            # compute combined command using nullspace projection
+            dq_combined = dq + self._controllers[idx].nullspace_projection(dq_combined)
+            # check if objective met
+            objective_met.insert(0, self._controllers[idx].objective_met)
+            # try connection
+            if self._controllers[idx].objective_met:
+                self.perform_connection()
+
+        return dq_combined, np.all(objective_met)
+
+    """
+    TODO
+    """
+    def perform_multiobjective_command(self, velocities, gripper_grabs):
+        # set up low action
+        low_action = np.concatenate([velocities, gripper_grabs])
+
+        # keep trying to reach the target in a closed-loop
+        ctrl = self._setup_action(low_action)
+        for i in range(self._action_repeat):
+                self._do_simulation(ctrl)
+
+                if i + 1 < self._action_repeat:
+                    velocities, _ = self.compute_multiobjective_controller_update()
+                    low_action = np.concatenate([velocities, gripper_grabs])
+                    ctrl = self._setup_action(low_action)
+
+        return
 
 """
 Main function; will not be called when environment is constructed from appropriate demo
