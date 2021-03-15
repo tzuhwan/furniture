@@ -2195,8 +2195,15 @@ class FurnitureEnv(metaclass=EnvMeta):
         of that object in the base frame.
         """
 
-        pos_in_world = self.sim.data.get_body_xpos(name)
-        rot_in_world = self.sim.data.get_body_xmat(name).reshape((3, 3))
+        if name in self.sim.model.body_names:
+            pos_in_world = self.sim.data.get_body_xpos(name)
+            rot_in_world = self.sim.data.get_body_xmat(name).reshape((3, 3))
+        if name in self.sim.model.geom_names:
+            pos_in_world = self.sim.data.get_geom_xpos(name)
+            rot_in_world = self.sim.data.get_geom_xmat(name).reshape((3, 3))
+        if name in self.sim.model.site_names:
+            pos_in_world = self.sim.data.get_site_xpos(name)
+            rot_in_world = self.sim.data.get_site_xmat(name).reshape((3, 3))
         pose_in_world = T.make_pose(pos_in_world, rot_in_world)
 
         base_pos_in_world = self.sim.data.get_body_xpos("base")

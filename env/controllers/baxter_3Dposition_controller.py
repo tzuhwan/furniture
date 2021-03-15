@@ -131,7 +131,7 @@ class Baxter3DPositionController(BaxterIKController):
 	"""
 	Sets the goal of the controller in world frame.
 	"""
-	def set_goal(self, control_arm, goal_pos, goal_quat=None):
+	def set_goal(self, control_arm, goal_pos):
 		# check for valid arm
 		if not ((control_arm == "left") or (control_arm == "right")):
 			print("Baxter3DPositionController: Arm %s not recognized" % control_arm)
@@ -141,7 +141,6 @@ class Baxter3DPositionController(BaxterIKController):
         # we now know arm is either "left" or "right"
 		self.control_arm = control_arm
 		self.goal_pos = goal_pos
-		self.goal_quat = goal_quat # rotation will not be used to determine goal
 		print("Baxter3DPositionController: New goal set for %s arm" % self.control_arm)
 		return
 

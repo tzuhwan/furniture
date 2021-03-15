@@ -15,8 +15,9 @@ import env.transform_utils as T
 from env.controllers import Baxter6DPoseController
 from env.controllers import BaxterObject6DPoseController
 from env.controllers import Baxter3DPositionController
-from env.controllers import BaxterAlignmentController
 from env.controllers import BaxterRotationController
+from env.controllers import BaxterAlignmentController
+from env.controllers import BaxterScrewController
 
 """
 Baxter robot environment with furniture assembly task.
@@ -39,7 +40,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         goal_pos_right = np.array([0.68432551, -0.29451258, 0.21005051])
         goal_quat_right = np.array([-0.54690822, 0.48197699, 0.51618452, 0.44960329]) # ("right", goal_pos_right, goal_quat_right)
         goal_quat_nonsense = np.array([0.2, -0.3, -0.4, 0.03854062]) # nonsense orientation for 3DPositionController
-        ### for Rotation controller
+        ### for Screw controller
         # 1.571, 3.141, 4.712, 6.283
         ### for Alignment controller
         align_pos_left = [0.82273044, 0.29672234, 0.00181328] # ("left", "+Z", align_pos_left)
@@ -47,6 +48,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
 
         ### 6DPoseController
         pose_controller_sequence = [("Baxter6DPoseController", ("right", goal_pos_right, goal_quat_right))]
+
+        ### RotationController
+        rotation_controller_sequence = [("BaxterRotationController", ("right", goal_quat_right))]
         
         ### sequence for testing all behaviors
         test_controller_sequence = [
@@ -55,8 +59,8 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             ("BaxterAlignmentController", ("left", "+Z", align_pos_left)),
             ("close-gripper", "left"),
             ("open-gripper", "right"),
-            ("Baxter3DPositionController", ("left", goal_pos_left, goal_quat_nonsense)),
-            ("BaxterRotationController", ("right", 6.283))
+            ("Baxter3DPositionController", ("left", goal_pos_left)),
+            ("BaxterScrewController", ("right", 6.283))
         ]
 
         ### sequence for testing multi-objective behaviors
@@ -64,7 +68,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         test_multiobjective_controller_sequence = [
             (
                 ("BaxterAlignmentController", ("left", "+Z", multiobj_align_pos_left)),
-                ("Baxter3DPositionController", ("left", multiobj_align_pos_left, None))
+                ("Baxter3DPositionController", ("left", multiobj_align_pos_left))
             )
         ]
 
@@ -77,8 +81,8 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         swivelchair_polepost_quat_right = [-0.58846033, 0.52953778, 0.46733307, 0.39357843]
         # swivelchair_polepost_pos_right = [0.53, 0.04, -0.04]
         # swivelchair_polepost_quat_right = [-0.05176196, 0.06610491, 0.77816441, 0.62242348]
-        swivelchair_polecnct_pos_right = [0.65, -0.12, -0.115]
-        swivelchair_polecnct_quat_right = [-0.58846033, 0.52953778, 0.46733307, 0.39357843]
+        swivelchair_polecnct_pos_right = [0.65, -0.12, -0.118]
+        swivelchair_polecnct_quat_right = [-0.5465044, 0.48847611, 0.50796767, 0.45242998]#[-0.58846033, 0.52953778, 0.46733307, 0.39357843]
 
         swivelchair_seatprep_pos_left = [0.45077123, 0.32370803, 0.25]
         swivelchair_seatprep_quat_left = [0.68661902, -0.72083896, -0.08676259, 0.03765338]
@@ -102,9 +106,10 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             ("Baxter6DPoseController", ("right", swivelchair_polepost_pos_right, swivelchair_polepost_quat_right)),# ("BaxterObject6DPoseController", ("right", '2_chair_column', swivelchair_polepost_pos_right, swivelchair_polepost_quat_right)),
             # ("Baxter6DPoseController", ("right", swivelchair_polecnct_pos_right, swivelchair_polecnct_quat_right)),# ("BaxterObject6DPoseController", ("right", '2_chair_column', swivelchair_polecnct_pos_right, swivelchair_polecnct_quat_right)),
             (
-                ("BaxterAlignmentController", ("right", "+Y", swivelchair_polecnct_pos_right)),
-                ("Baxter3DPositionController", ("right", swivelchair_polecnct_pos_right, None))
+                ("BaxterRotationController", ("right", swivelchair_polecnct_quat_right)),
+                ("Baxter3DPositionController", ("right", swivelchair_polecnct_pos_right))
             ),
+            # ("BaxterAlignmentController", ("right", "+X", swivelchair_polecnct_pos_right)),
             ("connect", "")
         ]
         swivelchair_pickseat_sequence = [
@@ -194,14 +199,23 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 self._controller.set_goal(control_arm, object_name, object_goal_pos, object_goal_quat)
                 run = "object-controller"
             elif action[0] == "Baxter3DPositionController":
-                control_arm, goal_pos, goal_quat = action[1]
+                control_arm, goal_pos = action[1]
                 self._controller = Baxter3DPositionController(
                     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
                     robot_jpos_getter=self._robot_jpos_getter,
                     verbose=False
                 )
-                self._controller.set_goal(control_arm, goal_pos, goal_quat)
+                self._controller.set_goal(control_arm, goal_pos)
                 run = "controller"
+            elif action[0] == "BaxterRotationController":
+                control_arm, goal_quat = action[1]
+                self._controller = BaxterRotationController(
+                    bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
+                    robot_jpos_getter=self._robot_jpos_getter,
+                    verbose=False
+                )
+                self._controller.set_goal(control_arm, goal_quat)
+                run="controller"
             elif action[0] == "BaxterAlignmentController":
                 control_arm, ee_axis, align_pos = action[1]
                 self._controller = BaxterAlignmentController(
@@ -211,9 +225,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 )
                 self._controller.set_goal(control_arm, ee_axis, align_pos)
                 run = "controller"
-            elif action[0] == "BaxterRotationController":
+            elif action[0] == "BaxterScrewController":
                 control_arm, rotation = action[1]
-                self._controller = BaxterRotationController(
+                self._controller = BaxterScrewController(
                     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
                     robot_jpos_getter=self._robot_jpos_getter,
                     verbose=False
@@ -381,7 +395,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     result = self._try_connect(self.sim.model.body_id2name(body_id))
                     print("connection result: ", result)
                     if result:
-                        return
+                        return result
                     break
 
     """
@@ -396,6 +410,19 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             body_pose_dict[body] = self.pose_in_base_from_name(body)
 
         return body_pose_dict
+
+    """
+    TODO
+    """
+    def pose_in_unity_from_pose_in_base(self, pose_in_base):
+        # get base pose
+        base_pos_in_world = self.sim.data.get_body_xpos("base")
+        base_rot_in_world = self.sim.data.get_body_xmat("base").reshape((3, 3))
+        base_pose_in_world = T.make_pose(base_pos_in_world, base_rot_in_world)
+
+        # pose in unity world = pose in base * base in unity world
+        pose_in_world = T.pose_in_A_to_pose_in_B(pose_in_base, base_pose_in_world)
+        return pose_in_world
 
     """
     TODO
@@ -428,7 +455,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 )
                 self._controllers[-1].set_goal(control_arm, goal_pos, goal_quat)
             elif controller[0] == "Baxter3DPositionController":
-                control_arm, goal_pos, goal_quat = controller[1]
+                control_arm, goal_pos = controller[1]
                 self._controllers.append(
                     Baxter3DPositionController(
                         bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
@@ -436,7 +463,17 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                         verbose=False
                     )
                 )
-                self._controllers[-1].set_goal(control_arm, goal_pos, goal_quat)
+                self._controllers[-1].set_goal(control_arm, goal_pos)
+            elif controller[0] == "BaxterRotationController":
+                control_arm, goal_quat = controller[1]
+                self._controllers.append(
+                    BaxterRotationController(
+                        bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
+                        robot_jpos_getter=self._robot_jpos_getter,
+                        verbose=False
+                    )
+                )
+                self._controllers[-1].set_goal(control_arm, goal_quat)
             elif controller[0] == "BaxterAlignmentController":
                 control_arm, ee_axis, align_pos = controller[1]
                 self._controllers.append(
@@ -447,10 +484,10 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     )
                 )
                 self._controllers[-1].set_goal(control_arm, ee_axis, align_pos)
-            elif controller[0] == "BaxterRotationController":
+            elif controller[0] == "BaxterScrewController":
                 control_arm, rotation = controller[1]
                 self._controllers.append(
-                    BaxterRotationController(
+                    BaxterScrewController(
                         bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
                         robot_jpos_getter=self._robot_jpos_getter,
                         verbose=False
@@ -480,8 +517,8 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             # check if objective met
             objective_met.insert(0, self._controllers[idx].objective_met)
             # try connection
-            if self._controllers[idx].objective_met:
-                self.perform_connection()
+            # if self._controllers[idx].objective_met:
+            #     self.perform_connection()
 
         return dq_combined, np.all(objective_met)
 
