@@ -60,7 +60,7 @@ class Baxter6DPoseController(BaxterIKController):
 		self.rotate_speed = 0.05
 
 		# set arm speed, which controls how fast the arm performs the commands
-		self.arm_step = 2
+		self.arm_step = 5
 
 		# initialize control arm
 		self.control_arm = ""
@@ -140,8 +140,8 @@ class Baxter6DPoseController(BaxterIKController):
 
         # we now know arm is either "left" or "right"
 		self.control_arm = control_arm
-		self.goal_pos = goal_pos
-		self.goal_quat = goal_quat
+		self.goal_pos = np.array(goal_pos)
+		self.goal_quat = np.array(goal_quat)
 		print("Baxter6DPoseController: New goal set for %s arm" % self.control_arm)
 		return
 
@@ -208,6 +208,12 @@ class Baxter6DPoseController(BaxterIKController):
 		return self.control_arm
 
 	"""
+	Gets the name of the controller.
+	"""
+	def controller_name(self):
+		return "Baxter6DPoseController"
+
+	"""
 	Sets the motion and rotation speeds for the controller.
 	"""
 	def set_motion_speeds(self, move_speed=None, rotate_speed=None):
@@ -266,6 +272,8 @@ class Baxter6DPoseController(BaxterIKController):
 		print("Baxter6DPoseController: potential %f" % pot)
 		if self.verbose:
 			print("Baxter6DPoseController: position distance %f, rotation distance %f" % (dist_pos, dist_quat))
+			print("curr pos: ", self.curr_pos, "curr quat: ", self.curr_quat)
+			print("goal pos: ", self.goal_pos, "goal quat: ", self.goal_quat)
 		return min(pot, self.max_potential)
 
 	"""
@@ -450,15 +458,19 @@ class Baxter6DPoseController(BaxterIKController):
 	"""
 	Projects a lower objective controller command into the nullspace of this controller.
 
+	@param lower_priority_controller_name, the string indicating the name of the lower priority controller being projected
 	@param dq_lower_priority, the controller command from the lower priority controller
 	@return the change in configuration of the lower priority controller projected into the nullspace of this controller
 	"""
-	def nullspace_projection(self, dq_lower_priority):
+	def nullspace_projection(self, lower_priority_controller_name, dq_lower_priority):
 		# get objective nullspace
 		N = self.get_objective_nullspace()
 
 		# project controller objective into nullspace as numpy array
-		dq_projected = self.matrixMultiply(N, dq_lower_priority) # TODO
+		if lower_priority_controller_name == "BaxterScrewController":
+			dq_projected = dq_lower_priority # screw controller only affects wrist roll, should not conflict, so no projection needed
+		else:
+			dq_projected = self.matrixMultiply(N, dq_lower_priority)
 
 		# convert numpy array to list
 		# dq_projected = list(dq_projected_mat)

@@ -110,6 +110,10 @@
                         <geom name="right_wrist_mesh" margin="0.001" class="viz" rgba="0.1 0.1 0.1 1" mesh="W2" />
                         <geom name="right_wrist_cylinder" margin="0.001" type="cylinder" size="0.06 0.0825" rgba="0.1 0.1 0.1 1" pos="0 0 0" />
                         <body name="right_hand" pos="0 0 0.11355">
+                          <!-- <geom name="right_hand_test_geom" margin="0.001" type="sphere" class="viz" conaffinity="0" contype="0" size="0.03" rgba="0 1 0 0.3" pos="0.0 0.0 0.0" /> -->
+                          <!-- <geom name="right_hand_xtest_geom" margin="0.001" type="cylinder" class="viz" conaffinity="0" contype="0" size="0.01 0.1" rgba="1 0 0 0.3" pos="0.06 0.0 0.0" quat="0.707107 0.0 0.707107 0.0"/>
+                          <geom name="right_hand_ytest_geom" margin="0.001" type="cylinder" class="viz" conaffinity="0" contype="0" size="0.01 0.1" rgba="0 1 0 0.3" pos="0.0 0.06 0.0" quat="0.707107 -0.707107 0.0 0.0"/>
+                          <geom name="right_hand_ztest_geom" margin="0.001" type="cylinder" class="viz" conaffinity="0" contype="0" size="0.01 0.1" rgba="0 0 1 0.3" pos="0.0 0.0 0.06" /> -->
 				<!-- right gripper gets added here -->
                         </body>
                       </body>
@@ -160,6 +164,9 @@
                         <geom name="left_wrist_mesh" margin="0.001" class="viz" rgba="0.1 0.1 0.1 1" mesh="W2" />
                         <geom name="left_wrist_cylinder" margin="0.001" type="cylinder" size="0.06 0.0825" rgba="0.1 0.1 0.1 1" pos="0 0 0" />
                         <body name="left_hand" pos="0 0 0.11355">
+                          <!-- <geom name="left_hand_xtest_geom" margin="0.001" type="cylinder" class="viz" conaffinity="0" contype="0" size="0.01 0.1" rgba="1 0 0 0.3" pos="0.06 0.0 0.0" quat="0.707107 0.0 0.707107 0.0"/>
+                          <geom name="left_hand_ytest_geom" margin="0.001" type="cylinder" class="viz" conaffinity="0" contype="0" size="0.01 0.1" rgba="0 1 0 0.3" pos="0.0 0.06 0.0" quat="0.707107 -0.707107 0.0 0.0"/>
+                          <geom name="left_hand_ztest_geom" margin="0.001" type="cylinder" class="viz" conaffinity="0" contype="0" size="0.01 0.1" rgba="0 0 1 0.3" pos="0.0 0.0 0.06"/> -->
        				<!-- left gripper gets added here --> 
                         </body>
                       </body>
@@ -172,6 +179,16 @@
         </body>
       </body>
     </body>
+    <!-- <geom name="controller_column_geom" margin="0.001" type="sphere" class="viz" conaffinity="0" contype="0" size="0.03" rgba="0 0 1 0.3" pos="0.0 -0.2 0.4" /> -->
+    <!-- <geom name="test_geom" margin="0.001" type="sphere" class="viz" conaffinity="0" contype="0" size="0.03" rgba="0 0 1 0.3" pos="0.0 -0.2 0.4" /> -->
+    <!-- <geom name="align_geom" margin="0.001" type="sphere" class="viz" conaffinity="0" contype="0" size="0.03" rgba="0 0 1 0.3" pos="0.0 -0.2 0.5" /> -->
+    <!-- <geom name="point_geom" margin="0.001" type="sphere" class="viz" conaffinity="0" contype="0" size="0.03" rgba="1 0 0 0.3" pos="0.0 -0.2 0.6" /> -->
+    <!--<geom name="target_geom" margin="0.001" type="sphere" class="viz" conaffinity="0" contype="0" size="0.04" rgba="1 0 1 0.3" pos="0.0 -0.2 0.3" quat="1 0 0 0" /> --> <!-- margin="0.001" type="sphere" class="viz" conaffinity="0" contype="0" size="0.01" rgba="1 0 1 0.3"  -->
+      <!--<geom name="target_pose_xtest_geom" margin="0.001" type="cylinder" class="viz" conaffinity="0" contype="0" size="0.01 0.1" rgba="1 0 0 0.3" pos="0.07 0.0 0.0" quat="0.707107 0.0 0.707107 0.0"/>
+      <geom name="target_pose_ytest_geom" margin="0.001" type="cylinder" class="viz" conaffinity="0" contype="0" size="0.01 0.1" rgba="0 1 0 0.3" pos="0.0 0.07 0.0" quat="0.707107 -0.707107 0.0 0.0"/>
+      <geom name="target_pose_ztest_geom" margin="0.001" type="cylinder" class="viz" conaffinity="0" contype="0" size="0.01 0.1" rgba="0 0 1 0.3" pos="0.0 0.0 0.07"/> -->
+    <!-- <geom name="raxis_geom" margin="0.001" type="sphere" class="viz" conaffinity="0" contype="0" size="0.03" rgba="0 1 1 0.3" pos="0.0 -0.2 0.4" /> -->
+    <!--<geom name="test_geom" conaffinity="0" contype="0" density="0" pos="0.4 0.4 0.4" rgba="0 0 1 0.3" size="0.1" type="cylinder" />-->
   </worldbody>
   <actuator>
 

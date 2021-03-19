@@ -7,3 +7,4 @@ from .baxter_3Dposition_controller import Baxter3DPositionController
 from .baxter_rotation_controller import BaxterRotationController
 from .baxter_alignment_controller import BaxterAlignmentController
 from .baxter_screw_controller import BaxterScrewController
+from .baxter_hardcoded_assembly_sequences import BaxterHardcodedAssemblySequences

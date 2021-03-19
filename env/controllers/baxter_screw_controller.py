@@ -194,6 +194,12 @@ class BaxterScrewController(BaxterIKController):
 		return self.control_arm
 
 	"""
+	Gets the name of the controller.
+	"""
+	def controller_name(self):
+		return "BaxterScrewController"
+
+	"""
 	Sets the motion and rotation speeds for the controller.
 	"""
 	def set_motion_speeds(self, move_speed=None, rotate_speed=None):
@@ -396,7 +402,7 @@ class BaxterScrewController(BaxterIKController):
 
 		# compute nullspace
 		# nullspace should be identity
-		# lower-order controller command should not conflict with rotation command
+		# lower-order controller command should not conflict with screw command
 		N = I # (nxn)
 
 		if self.verbose:
@@ -407,15 +413,16 @@ class BaxterScrewController(BaxterIKController):
 	"""
 	Projects a lower objective controller command into the nullspace of this controller.
 
+	@param lower_priority_controller_name, the string indicating the name of the lower priority controller being projected
 	@param dq_lower_priority, the controller command from the lower priority controller
 	@return the change in configuration of the lower priority controller projected into the nullspace of this controller
 	"""
-	def nullspace_projection(self, dq_lower_priority):
+	def nullspace_projection(self, lower_priority_controller_name, dq_lower_priority):
 		# get objective nullspace
 		N = self.get_objective_nullspace()
 
 		# project controller objective into nullspace as numpy array
-		dq_projected = self.matrixMultiply(N, dq_lower_priority) # TODO
+		dq_projected = self.matrixMultiply(N, dq_lower_priority)
 
 		# convert numpy array to list
 		# dq_projected = list(dq_projected_mat)

@@ -18,6 +18,7 @@ from env.controllers import Baxter3DPositionController
 from env.controllers import BaxterRotationController
 from env.controllers import BaxterAlignmentController
 from env.controllers import BaxterScrewController
+from env.controllers import BaxterHardcodedAssemblySequences
 
 """
 Baxter robot environment with furniture assembly task.
@@ -34,95 +35,11 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         # initialize FurnitureBaxterEnv
         super().__init__(config)
 
-        ### for 6DPose or 3DPosition controllers
-        goal_pos_left = np.array([0.82516098, 0.3, 0.19841084])
-        goal_quat_left = np.array([0.68656258, -0.72074515, -0.08759494, 0.03854062]) # ("left", goal_pos_left, goal_quat_left)
-        goal_pos_right = np.array([0.68432551, -0.29451258, 0.21005051])
-        goal_quat_right = np.array([-0.54690822, 0.48197699, 0.51618452, 0.44960329]) # ("right", goal_pos_right, goal_quat_right)
-        goal_quat_nonsense = np.array([0.2, -0.3, -0.4, 0.03854062]) # nonsense orientation for 3DPositionController
-        ### for Screw controller
-        # 1.571, 3.141, 4.712, 6.283
-        ### for Alignment controller
-        align_pos_left = [0.82273044, 0.29672234, 0.00181328] # ("left", "+Z", align_pos_left)
-        align_pos_right = [0.82051034, -0.24336258, 0.08321501] # ("right", "+Z", align_pos_right)
+        # read in hardcoded action sequences
+        self.hardcoded_action_sequences = BaxterHardcodedAssemblySequences()
 
-        ### 6DPoseController
-        pose_controller_sequence = [("Baxter6DPoseController", ("right", goal_pos_right, goal_quat_right))]
-
-        ### RotationController
-        rotation_controller_sequence = [("BaxterRotationController", ("right", goal_quat_right))]
-        
-        ### sequence for testing all behaviors
-        test_controller_sequence = [
-            ("Baxter6DPoseController", ("right", goal_pos_right, goal_quat_right)),
-            ("close-gripper", "right"),
-            ("BaxterAlignmentController", ("left", "+Z", align_pos_left)),
-            ("close-gripper", "left"),
-            ("open-gripper", "right"),
-            ("Baxter3DPositionController", ("left", goal_pos_left)),
-            ("BaxterScrewController", ("right", 6.283))
-        ]
-
-        ### sequence for testing multi-objective behaviors
-        multiobj_align_pos_left = [0.82273044, 0.2, 0.00181328]
-        test_multiobjective_controller_sequence = [
-            (
-                ("BaxterAlignmentController", ("left", "+Z", multiobj_align_pos_left)),
-                ("Baxter3DPositionController", ("left", multiobj_align_pos_left))
-            )
-        ]
-
-        ### sequence for assembling swivel chair
-        swivelchair_poleprep_pos_right = [0.55756265, -0.1, -0.11673727]
-        swivelchair_poleprep_quat_right = [-0.58808523, 0.53074937, 0.46539465, 0.39480208]
-        swivelchair_polepick_pos_right = [0.53, -0.00189214, -0.11673727]
-        swivelchair_polepick_quat_right = [-0.58808523, 0.53074937, 0.46539465, 0.39480208]
-        swivelchair_polepost_pos_right = [0.65, -0.12, -0.04]
-        swivelchair_polepost_quat_right = [-0.58846033, 0.52953778, 0.46733307, 0.39357843]
-        # swivelchair_polepost_pos_right = [0.53, 0.04, -0.04]
-        # swivelchair_polepost_quat_right = [-0.05176196, 0.06610491, 0.77816441, 0.62242348]
-        swivelchair_polecnct_pos_right = [0.65, -0.12, -0.118]
-        swivelchair_polecnct_quat_right = [-0.5465044, 0.48847611, 0.50796767, 0.45242998]#[-0.58846033, 0.52953778, 0.46733307, 0.39357843]
-
-        swivelchair_seatprep_pos_left = [0.45077123, 0.32370803, 0.25]
-        swivelchair_seatprep_quat_left = [0.68661902, -0.72083896, -0.08676259, 0.03765338]
-        swivelchair_seatpick_pos_left = [0.45077123, 0.32370803, 0.13]
-        swivelchair_seatpick_quat_left = [0.68661902, -0.72083896, -0.08676259, 0.03765338]
-
-        # WORKING TO HERE!
-        # swivelchair_seatcnct_pos_left = [0.59742394, 0.08848166, 0.64171694]
-        # swivelchair_seatcnct_quat_left = [0.71337652, -0.68281197, -0.14455587, 0.06297114]
-        swivelchair_seatpost_pos_left = [ 0.5700034, 0.33655155, 0.06]
-        swivelchair_seatpost_quat_left = [0.00037086, 0.00036539, 0.73133093, 0.68202258]
-        # swivelchair_cnctprep_pos_left = [0.45077123, 0.32370803, 0.25]
-        # swivelchair_cnctprep_quat_left = [0.68661902, -0.72083896, -0.08676259, 0.03765338]
-        # swivelchair_seatcnct_pos_left = [0.5916167, -0.00193475, 0.51251066]
-        # swivelchair_seatcnct_quat_left = [0.68599818, -0.72016698, -0.09497703, 0.04177788]
-        
-        swivelchair_cnctpolebase_sequence = [
-            ("Baxter6DPoseController", ("right", swivelchair_poleprep_pos_right, swivelchair_poleprep_quat_right)),
-            ("Baxter6DPoseController", ("right", swivelchair_polepick_pos_right, swivelchair_polepick_quat_right)),
-            ("close-gripper", "right"),
-            ("Baxter6DPoseController", ("right", swivelchair_polepost_pos_right, swivelchair_polepost_quat_right)),# ("BaxterObject6DPoseController", ("right", '2_chair_column', swivelchair_polepost_pos_right, swivelchair_polepost_quat_right)),
-            # ("Baxter6DPoseController", ("right", swivelchair_polecnct_pos_right, swivelchair_polecnct_quat_right)),# ("BaxterObject6DPoseController", ("right", '2_chair_column', swivelchair_polecnct_pos_right, swivelchair_polecnct_quat_right)),
-            (
-                ("BaxterRotationController", ("right", swivelchair_polecnct_quat_right)),
-                ("Baxter3DPositionController", ("right", swivelchair_polecnct_pos_right))
-            ),
-            # ("BaxterAlignmentController", ("right", "+X", swivelchair_polecnct_pos_right)),
-            ("connect", "")
-        ]
-        swivelchair_pickseat_sequence = [
-            ("Baxter6DPoseController", ("left", swivelchair_seatprep_pos_left, swivelchair_seatprep_quat_left)),
-            ("Baxter6DPoseController", ("left", swivelchair_seatpick_pos_left, swivelchair_seatpick_quat_left)),
-            ("close-gripper", "left"),
-            # ("Baxter6DPoseController", ("left", swivelchair_seatprep_pos_left, swivelchair_seatprep_quat_left), (0.1, None))
-            ("BaxterObject6DPoseController", ("left", "3_chair_seat", swivelchair_seatpost_pos_left, swivelchair_seatpost_quat_left))
-        ]
-
-        # initialize sequence of actions, where each action is
-        # (action/controller, params) tuple
-        self._action_sequence = swivelchair_cnctpolebase_sequence# swivelchair_pickseat_sequence
+        # initialize sequence of actions, where each action is (action/controller, params) tuple
+        self._action_sequence = self.hardcoded_action_sequences.swivelchair_assembly_sequence
 
     """
     Takes a simulation step with @a and computes reward.
@@ -153,6 +70,11 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             self._set_qpos('1_chair_base',
                 [-0.1, 0.0, 0.0144],
                 [0.996917333733128, 0.07845909572784494, 0.0, 0.0]
+            )
+            print("reseting swivel chair column pose")
+            self._set_qpos('2_chair_column',
+                [0.02974198, 0.10812374, 0.06895991],
+                [-0.00000004, -0.00000002, 0.03443238, 0.99940703]
             )
 
         if config.render:
@@ -194,7 +116,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
                     robot_jpos_getter=self._robot_jpos_getter,
                     objects_in_scene=self._object_names,
-                    verbose=False # TODO
+                    verbose=False
                 )
                 self._controller.set_goal(control_arm, object_name, object_goal_pos, object_goal_quat)
                 run = "object-controller"
@@ -310,14 +232,14 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 vr.add(self.render('rgb_array'))
 
             if isinstance(action[0], tuple):
-                print("FurnitureBaxterAssemblyEnv: finished action %s" % self.action_string(action))
+                print("FurnitureBaxterAssemblyEnv: finished action %s" % self.multiobjective_controller_string(action))
             else:
                 print("FurnitureBaxterAssemblyEnv: finished action %s" % action[0])
 
         print("FurnitureBaxterAssemblyEnv: Goal met!")
         time.sleep(2)
         if config.record_video:
-            vr.save_video('FurnitureBaxterAssemblyEnv_test.mp4')
+            vr.save_video('FurnitureBaxterAssemblyEnv_test.mp4') # FurnitureBaxterAssemblyEnv_test.mp4
         time.sleep(2)
         print("FurnitureBaxterAssemblyEnv returning")
 
@@ -399,7 +321,10 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     break
 
     """
-    TODO
+    Get the pose matrices for bodies in the scene.
+
+    @param none
+    @return dictionary of body names to pose matrices in the robot base frame
     """
     def get_body_pose_matrices(self):
         # initialize dictionary of bodies to poses
@@ -412,7 +337,10 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         return body_pose_dict
 
     """
-    TODO
+    Compute a pose in the Unity frame from the pose in the robot base frame.
+
+    @param pose_in_base, the pose in the robot base frame
+    @return the given pose expressed in the Unity frame
     """
     def pose_in_unity_from_pose_in_base(self, pose_in_base):
         # get base pose
@@ -425,9 +353,12 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         return pose_in_world
 
     """
-    TODO
+    Creates a string representing the name of a multi-objective controller.
+
+    @param controllers, the tuple of (controller, params) tuples involved in the action
+    @return the string indicating the composition (subject-to relations) involved in the multi-objective controller
     """
-    def action_string(self, controllers):
+    def multiobjective_controller_string(self, controllers):
         action = ""
         # construct action string based on controllers
         for i in range(len(controllers)):
@@ -438,7 +369,10 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         return action
 
     """
-    TODO
+    Initializes the list of controllers for multi-objective actions.
+
+    @param action, the tuple of (controller, params) tuples involved in the action
+    @post all controllers in the muli-objective behavior are initialized and goals set
     """
     def initialize_multiobjective_controllers(self, action):
         self._controllers = []
@@ -501,10 +435,15 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         return
 
     """
-    TODO
+    Computes the multi-objective controller update by composing controller commands.
+
+    @param none
+    @return the combined controller update from the composition of the controllers
+    @return boolean indicating if the combined objective is met
     """
     def compute_multiobjective_controller_update(self):
         dq_combined = np.zeros(14)
+        lower_priority_controller_name = ""
         objective_met = []
         # compute combined control command
         for i in range(len(self._controllers)):
@@ -513,9 +452,11 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             # compute controller command, index from lowest priority to highest
             dq = self._controllers[idx].get_control()
             # compute combined command using nullspace projection
-            dq_combined = dq + self._controllers[idx].nullspace_projection(dq_combined)
+            dq_combined = dq + self._controllers[idx].nullspace_projection(lower_priority_controller_name, dq_combined)
             # check if objective met
             objective_met.insert(0, self._controllers[idx].objective_met)
+            # update controller name
+            lower_priority_controller_name = self._controllers[idx].controller_name()
             # try connection
             # if self._controllers[idx].objective_met:
             #     self.perform_connection()
@@ -523,7 +464,12 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         return dq_combined, np.all(objective_met)
 
     """
-    TODO
+    Performs the given multi-objective controller command.
+    Copied from part of _step_continuous() function in furniture.py
+
+    @param velocities, the change in configuration induced by the multi-objective controller
+    @param gripper_grabs, flags indicating whether [right, left] grippers have closed
+        where 1 means gripper is closed and -1 means gripper is open
     """
     def perform_multiobjective_command(self, velocities, gripper_grabs):
         # set up low action
