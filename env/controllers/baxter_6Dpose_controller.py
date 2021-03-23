@@ -60,7 +60,7 @@ class Baxter6DPoseController(BaxterIKController):
 		self.rotate_speed = 0.05
 
 		# set arm speed, which controls how fast the arm performs the commands
-		self.arm_step = 5
+		self.arm_step = 2
 
 		# initialize control arm
 		self.control_arm = ""
