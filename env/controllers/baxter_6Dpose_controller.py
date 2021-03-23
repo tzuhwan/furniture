@@ -101,6 +101,8 @@ class Baxter6DPoseController(BaxterIKController):
 			print("Baxter6DPoseController: Goal met! No update needed.")
 			self.objective_met = True
 			return velocities
+		else:
+			self.objective_met = False
 
 		# compute dq and update state
 		# this is done in iterations, as in BaxterIKController
@@ -138,8 +140,8 @@ class Baxter6DPoseController(BaxterIKController):
 
         # we now know arm is either "left" or "right"
 		self.control_arm = control_arm
-		self.goal_pos = goal_pos
-		self.goal_quat = goal_quat
+		self.goal_pos = np.array(goal_pos)
+		self.goal_quat = np.array(goal_quat)
 		print("Baxter6DPoseController: New goal set for %s arm" % self.control_arm)
 		return
 
@@ -206,6 +208,12 @@ class Baxter6DPoseController(BaxterIKController):
 		return self.control_arm
 
 	"""
+	Gets the name of the controller.
+	"""
+	def controller_name(self):
+		return "Baxter6DPoseController"
+
+	"""
 	Sets the motion and rotation speeds for the controller.
 	"""
 	def set_motion_speeds(self, move_speed=None, rotate_speed=None):
@@ -223,6 +231,22 @@ class Baxter6DPoseController(BaxterIKController):
 		self.arm_step = arm_speed
 		print("Baxter6DPoseController: Set new arm speed")
 		return
+
+	"""
+	Gets relevant joint info.
+	"""
+	def get_relevant_joint_info(self):
+		# compute joint info for relevant joints
+		joint_infos = [p.getJointInfo(self.ik_robot, i) for i in self.actual]
+
+		# get relevant joint info
+		joint_idxs = [i[0] for i in joint_infos]
+		joint_names = [i[1] for i in joint_infos]
+		joint_lower = [i[8] for i in joint_infos]
+		joint_upper = [i[9] for i in joint_infos]
+		joint_ranges = [(i[9] - i[8]) for i in joint_infos]
+
+		return zip(joint_idxs, joint_names, joint_lower, joint_upper, joint_ranges)
 
 	#################################################
 	### POTENTIAL FIELD AND CONTROL LAW FUNCTIONS ###
@@ -249,6 +273,8 @@ class Baxter6DPoseController(BaxterIKController):
 		if self.debug:
 			print("Baxter6DPoseController: potential %f" % pot)
 			print("Baxter6DPoseController: position distance %f, rotation distance %f" % (dist_pos, dist_quat))
+			print("curr pos: ", self.curr_pos, "curr quat: ", self.curr_quat)
+			print("goal pos: ", self.goal_pos, "goal quat: ", self.goal_quat)
 		return min(pot, self.max_potential)
 
 	"""
@@ -433,18 +459,22 @@ class Baxter6DPoseController(BaxterIKController):
 	"""
 	Projects a lower objective controller command into the nullspace of this controller.
 
+	@param lower_priority_controller_name, the string indicating the name of the lower priority controller being projected
 	@param dq_lower_priority, the controller command from the lower priority controller
 	@return the change in configuration of the lower priority controller projected into the nullspace of this controller
 	"""
-	def nullspace_projection(self, dq_lower_priority):
+	def nullspace_projection(self, lower_priority_controller_name, dq_lower_priority):
 		# get objective nullspace
 		N = self.get_objective_nullspace()
 
 		# project controller objective into nullspace as numpy array
-		dq_projected_mat = self.matrixMultiply(N, dq_lower_priority)
+		if lower_priority_controller_name == "BaxterScrewController":
+			dq_projected = dq_lower_priority # screw controller only affects wrist roll, should not conflict, so no projection needed
+		else:
+			dq_projected = self.matrixMultiply(N, dq_lower_priority)
 
 		# convert numpy array to list
-		dq_projected = list(dq_projected_mat)
+		# dq_projected = list(dq_projected_mat)
 
 		if self.verbose:
 			print("Baxter6DPoseController: computed %dx1 projected controller command" % len(dq_projected))

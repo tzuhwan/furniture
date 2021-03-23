@@ -103,6 +103,8 @@ class BaxterAlignmentController(BaxterIKController):
 			print("BaxterAlignmentController: Goal met! No update needed.")
 			self.objective_met = True
 			return velocities
+		else:
+			self.objective_met = False
 
 		# compute dq and update state
 		# this is done in iterations, as in BaxterIKController
@@ -285,6 +287,22 @@ class BaxterAlignmentController(BaxterIKController):
 		self.arm_step = arm_speed
 		print("BaxterAlignmentController: Set new arm speed")
 		return
+
+	"""
+	Gets relevant joint info.
+	"""
+	def get_relevant_joint_info(self):
+		# compute joint info for relevant joints
+		joint_infos = [p.getJointInfo(self.ik_robot, i) for i in self.actual]
+
+		# get relevant joint info
+		joint_idxs = [i[0] for i in joint_infos]
+		joint_names = [i[1] for i in joint_infos]
+		joint_lower = [i[8] for i in joint_infos]
+		joint_upper = [i[9] for i in joint_infos]
+		joint_ranges = [(i[9] - i[8]) for i in joint_infos]
+
+		return zip(joint_idxs, joint_names, joint_lower, joint_upper, joint_ranges)
 
 	#################################################
 	### POTENTIAL FIELD AND CONTROL LAW FUNCTIONS ###
@@ -515,10 +533,10 @@ class BaxterAlignmentController(BaxterIKController):
 		N = self.get_objective_nullspace()
 
 		# project controller objective into nullspace as numpy array
-		dq_projected_mat = self.matrixMultiply(N, dq_lower_priority)
+		dq_projected = self.matrixMultiply(N, dq_lower_priority) # TODO
 
 		# convert numpy array to list
-		dq_projected = list(dq_projected_mat)
+		# dq_projected = list(dq_projected_mat)
 
 		if self.verbose:
 			print("BaxterAlignmentController: computed %dx1 projected controller command" % len(dq_projected))

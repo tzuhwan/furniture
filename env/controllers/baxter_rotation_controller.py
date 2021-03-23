@@ -1,5 +1,5 @@
 """
-Rotation controller for Baxter
+Rotatoin controller for Baxter
 
 NOTE: requires pybullet module.
 
@@ -43,8 +43,8 @@ class BaxterRotationController(BaxterIKController):
 		super().__init__(bullet_data_path, robot_jpos_getter)
 
 		# set debug and verbose flags
-		self.debug = debug
 		self.verbose = verbose
+		self.debug = debug
 
 		# max potential
 		self.max_potential = 100
@@ -57,34 +57,16 @@ class BaxterRotationController(BaxterIKController):
 
 		# set move and rotate speed, for scaling motions; these are equivalent to controller gains
 		self.move_speed = 0.025
-		self.rotate_speed = 0.01
+		self.rotate_speed = 0.05
 
 		# set arm speed, which controls how fast the arm performs the commands
 		self.arm_step = 2
 
-		# set indices of right_w2 and left_w2 joints based on baxter urdf file
-		self.right_wrist_idx = 20
-		self.left_wrist_idx = 38
-
-		# set joint limits for wrists
-		right_info = p.getJointInfo(self.ik_robot, self.right_wrist_idx)
-		self.right_lower_limit = right_info[8]
-		self.right_upper_limit = right_info[9]
-		self.right_range = right_info[9] - right_info[9]
-		left_info = p.getJointInfo(self.ik_robot, self.left_wrist_idx)
-		self.left_lower_limit = left_info[8]
-		self.left_upper_limit = left_info[9]
-		self.left_range = left_info[9] - left_info[8]
-
-		# set indices of right_w2 and left_w2 joints based on the mapping of relevant joints
-		self.right_wrist_relevant_idx = self.actual.index(self.right_wrist_idx)
-		self.left_wrist_relevant_idx = self.actual.index(self.left_wrist_idx)
-
 		# initialize control arm
 		self.control_arm = ""
 
-		# initialize current configuration
-		self.set_current_configuration()
+		# initialize current pose
+		self.set_current_pose()
 
 	"""
     Syncs the internal Pybullet robot state to the joint positions of the
@@ -107,8 +89,8 @@ class BaxterRotationController(BaxterIKController):
 		# sync joint positions for IK
 		self.sync_ik_robot(self.robot_jpos_getter())
 
-		# set current configuration and compute potential
-		self.set_current_configuration()
+		# set current pose and compute potential
+		self.set_current_pose()
 		pot = self.potential()
 
 		# initialize velocities for proportional controller
@@ -119,18 +101,17 @@ class BaxterRotationController(BaxterIKController):
 			print("BaxterRotationController: Goal met! No update needed.")
 			self.objective_met = True
 			return velocities
+		else:
+			self.objective_met = False
 
 		# compute dq and update state
 		# this is done in iterations, as in BaxterIKController
 		for _ in range(5):
 			# get dq
-			dq, dq_wrist = self.get_dq()
+			dq = self.get_dq()
 
 			# sync robot to match joint angles
 			self.sync_ik_robot(dq, sync_last=True)
-
-		# update remaining rotation
-		self.remaining_rotation -= dq_wrist
 
 		# compute error between current and commanded joint positions
 		deltas = self._get_current_error(self.robot_jpos_getter(), dq)
@@ -150,38 +131,82 @@ class BaxterRotationController(BaxterIKController):
 	"""
 	Sets the goal of the controller in world frame.
 	"""
-	def set_goal(self, control_arm, relative_rotation):
+	def set_goal(self, control_arm, goal_rotation):
 		# check for valid arm
 		if not ((control_arm == "left") or (control_arm == "right")):
 			print("BaxterRotationController: Arm %s not recognized" % control_arm)
 			raise NameError
 			return
 
+		# check if rpy or xyzw
+		if len(goal_rotation) == 3:
+			goal_quat = T.euler_to_quat(goal_rotation)
+		elif len(goal_rotation) == 4:
+			goal_quat = goal_rotation
+		else:
+			print("BaxterRotationController: Unexpected rotation length of %d, should be 3 (rpy) or 4 (xyzw)" % len(goal_rotation))
+			raise TypeError
+			return
+
         # we now know arm is either "left" or "right"
 		self.control_arm = control_arm
-		self.total_rotation = relative_rotation
-		self.remaining_rotation = relative_rotation
+		self.goal_quat = np.array(goal_quat)
 		print("BaxterRotationController: New goal set for %s arm" % self.control_arm)
 		return
 
 	"""
-	Sets the current configuration of the robot.
-	"""
-	def set_current_configuration(self):
-		# compute the current configuration
-		self.curr_q = self.robot_jpos_getter()
-		if self.debug:
-			print("BaxterRotationController: current configuration: ", self.curr_q)
+	Sets the current pose of the robot in the world frame.
 
-		# set left and right wrist joint positions
-		self.curr_left_wrist_q = self.curr_q[self.left_wrist_relevant_idx]
-		self.curr_right_wrist_q = self.curr_q[self.right_wrist_relevant_idx]
+	@param curr_left_pos, the current position of the left arm in the base frame of the robot
+	@param curr_left_quat, the current rotation of the left arm in the base frame of the robot
+	@param curr_right_pos, the current position of the right arm in the base frame of the robot
+	@param curr_right_quat, the current rotation of the right arm in the base frame of the robot
+	@return none
+	@post current pose of robot in world frame is updated internally
+	"""
+	def set_current_pose(self, curr_right_pos=None, curr_right_quat=None, curr_left_pos=None, curr_left_quat=None):
+		# if none, then get pose and orientation of end-effectors in base frame from ik
+		if curr_right_pos is None:
+			curr_right_pos, curr_right_quat, curr_left_pos, curr_left_quat = self.ik_robot_eef_joint_cartesian_pose()
+			if self.debug:
+				print("BaxterRotationController: left pos from ik in base frame: ", curr_left_pos)
+				print("BaxterRotationController: left rot from ik in base frame: ", curr_left_quat)
+				print("BaxterRotationController: right pos from ik in base frame: ", curr_right_pos)
+				print("BaxterRotationController: right rot from ik in base frame: ", curr_right_quat)
+		else:
+			if self.debug:	
+				print("BaxterRotationController: given left pos in base frame: ", curr_left_pos)
+				print("BaxterRotationController: given left rot in base frame: ", curr_left_quat)
+				print("BaxterRotationController: given right pos in base frame: ", curr_right_pos)
+				print("BaxterRotationController: given right rot in base frame: ", curr_right_quat)
+
+		# compute left and right poses in world frame
+		curr_left_pos_in_world, curr_left_quat_in_world = self.bullet_base_pose_to_world_pose(
+			(curr_left_pos, curr_left_quat)
+		)
+		curr_right_pos_in_world, curr_right_quat_in_world = self.bullet_base_pose_to_world_pose(
+			(curr_right_pos, curr_right_quat)
+		)
+
+		if self.debug:
+			print("BaxterRotationController: left pos in world frame: ", curr_left_pos_in_world)
+			print("BaxterRotationController: left rot in world frame: ", curr_left_quat_in_world)
+			print("BaxterRotationController: right pos in world frame: ", curr_right_pos_in_world)
+			print("BaxterRotationController: right rot in world frame: ", curr_right_quat_in_world)
+
+		# set left and right poses
+		self.curr_left_pos = curr_left_pos_in_world
+		self.curr_left_quat = curr_left_quat_in_world
+		self.curr_right_pos = curr_right_pos_in_world
+		self.curr_right_quat = curr_right_quat_in_world
 
 		# set pose of control_arm
 		if self.control_arm == "left":
-			self.curr_wrist_q = self.curr_left_wrist_q
+			self.curr_pos = self.curr_left_pos
+			self.curr_quat = self.curr_left_quat
 		else: # self.control_arm == "right"
-			self.curr_wrist_q = self.curr_right_wrist_q
+			self.curr_pos = self.curr_right_pos
+			self.curr_quat = self.curr_right_quat
 
 		return
 
@@ -190,6 +215,12 @@ class BaxterRotationController(BaxterIKController):
 	"""
 	def get_control_arm(self):
 		return self.control_arm
+
+	"""
+	Gets the name of the controller.
+	"""
+	def controller_name(self):
+		return "BaxterRotationController"
 
 	"""
 	Sets the motion and rotation speeds for the controller.
@@ -210,75 +241,116 @@ class BaxterRotationController(BaxterIKController):
 		print("BaxterRotationController: Set new arm speed")
 		return
 
+	"""
+	Gets relevant joint info.
+	"""
+	def get_relevant_joint_info(self):
+		# compute joint info for relevant joints
+		joint_infos = [p.getJointInfo(self.ik_robot, i) for i in self.actual]
+
+		# get relevant joint info
+		joint_idxs = [i[0] for i in joint_infos]
+		joint_names = [i[1] for i in joint_infos]
+		joint_lower = [i[8] for i in joint_infos]
+		joint_upper = [i[9] for i in joint_infos]
+		joint_ranges = [(i[9] - i[8]) for i in joint_infos]
+
+		return zip(joint_idxs, joint_names, joint_lower, joint_upper, joint_ranges)
+
 	#################################################
 	### POTENTIAL FIELD AND CONTROL LAW FUNCTIONS ###
 	#################################################
 
 	"""
-	Computes the potential of the controller based on the total remaining rotation to achieve.
+	Computes the potential of the controller based on the current and goal poses.
 	Based on attractive potential field.
 	"""
 	def potential(self):
-		# compute difference between current and goal rotation
-		diff = -self.remaining_rotation
+		# compute difference between current and goal pose
+		diff_pos = self.curr_pos - self.curr_pos # no difference
+		diff_quat = T.quat_multiply(T.quat_inverse(self.curr_quat), self.goal_quat)
+		diff = np.hstack([diff_pos, diff_quat])
 
 		# compute distance to goal
-		dist = np.linalg.norm(diff)
+		dist_pos = np.linalg.norm(diff[:3]) # no difference
+		dist_quat = Quaternion.distance(Quaternion(self.curr_quat), Quaternion(self.goal_quat))
+		dist = dist_pos + dist_quat
 
 		# compute potential
 		pot = 0.5 * dist * dist
 		print("BaxterRotationController: potential %f" % pot)
+		if self.verbose:
+			print("BaxterRotationController: position distance %f, rotation distance %f" % (dist_pos, dist_quat))
 		return min(pot, self.max_potential)
 
 	"""
-	Computes the gradient of the controller based on the total remaining rotation to achieve.
+	Computes the gradient of the controller based on the current and goal poses.
+	Based on attractive potential field.
 	"""
 	def gradient(self):
-		# compute difference between current and goal rotation
-		diff = -self.remaining_rotation
+		# compute difference between current and goal pose
+		diff_pos = self.curr_pos - self.curr_pos # no difference
+		diff_quat = T.quat_multiply(T.quat_inverse(self.curr_quat), self.goal_quat)
+		diff = np.hstack([diff_pos, diff_quat])
 
 		# compute gradient
 		grad = diff
 		return grad
 
 	"""
+	Compute the change in pose induced by the controller.
+
+	@param none
+	@return the change in 6D pose induced by the controller
+	"""
+	def get_dx(self):
+		# compute gradient
+		grad = self.gradient()
+
+		# compute dx
+		dx = -grad
+		return dx
+
+	"""
 	Compute the change in configuration induced by the controller.
 
 	@param none
 	@return the commanded joint positions induced by the controller
-	@return the commanded change in the controlled wrist joint
 	"""
 	def get_dq(self):
-		# compute gradient
-		grad = -self.gradient()
+		# compute dx
+		dx = self.get_dx()
 
-		# initialize dq
-		dq = self.robot_jpos_getter()
-
-		# update dq based on controlled wrist
+		# compute targets
 		if self.control_arm == "left":
-			commanded_change = dq[self.left_wrist_relevant_idx] + (self.rotate_speed * grad) # scale down rotation
-			if (commanded_change <= self.left_lower_limit) or (commanded_change >= self.left_upper_limit):
-				print("BaxterRotationController: too close to joint limits, no update needed")
-				print("BaxterRotationController: current wrist position %f, lower joint limit %f, upper joint limit %f"
-					% (dq[self.left_wrist_relevant_idx], self.left_lower_limit, self.left_upper_limit))
-				self.objective_met = True
-			else:
-				dq[self.left_wrist_relevant_idx] = commanded_change
+			# target for left arm is to reach goal pose
+			target_left_pos = self.curr_pos + (self.move_speed * dx[:3]) # scale down position not necessary, since no position command
+			target_left_quat = T.quat_multiply(self.curr_quat, dx[3:7])
+			target_left_quat = T.quat_slerp(self.curr_quat, target_left_quat, self.rotate_speed) # scale down rotation
+			# target for right arm is to stay in place
+			target_right_pos = self.curr_right_pos + np.zeros_like(dx[:3])
+			target_right_quat_diff = T.quat_multiply(T.quat_inverse(self.curr_right_quat), self.curr_right_quat)
+			target_right_quat = T.quat_multiply(self.curr_right_quat, target_right_quat_diff)
 		else: # self.control_arm == "right"
-			commanded_change = dq[self.right_wrist_relevant_idx] + (self.rotate_speed * grad) # scale down rotation
-			if (commanded_change <= self.right_lower_limit) or (commanded_change >= self.right_upper_limit):
-				print("BaxterRotationController: too close to joint limits, no update needed")
-				print("BaxterRotationController: current wrist position %f, lower joint limit %f, upper joint limit %f"
-					% (dq[self.right_wrist_relevant_idx], self.right_lower_limit, self.right_upper_limit))
-				self.objective_met = True
-			else:
-				dq[self.right_wrist_relevant_idx] = commanded_change
+			# target for left arm is to stay in place
+			target_left_pos = self.curr_left_pos + np.zeros_like(dx[:3])
+			target_left_quat_diff = T.quat_multiply(T.quat_inverse(self.curr_left_quat), self.curr_left_quat)
+			target_left_quat = T.quat_multiply(self.curr_left_quat, target_left_quat_diff)
+			# target for right arm is to reach goal pose
+			target_right_pos = self.curr_pos + (self.move_speed * dx[:3]) # scale down position not necessary, since no position command
+			target_right_quat = T.quat_multiply(self.curr_quat, dx[3:7])
+			target_right_quat = T.quat_slerp(self.curr_quat, target_right_quat, self.rotate_speed) # scale down rotation
 
-		# compute change in rotation to wrist joint
-		dq_wrist = abs(self.rotate_speed * grad)
+		# use inverse kinematics function to compute dq
+		dq = self.inverse_kinematics(
+			target_right_pos,
+			target_right_quat,
+			target_left_pos,
+			target_left_quat,
+			rest_poses=self.robot_jpos_getter()
+		)
 
-		return dq, dq_wrist
+		return dq
 
 	###################################################
 	### JACOBIAN AND NULLSPACE PROJECTION FUNCTIONS ###
@@ -304,7 +376,7 @@ class BaxterRotationController(BaxterIKController):
 	"""
 	Computes the Jacobian for this controller.
 
-	In this case, returns 3xn angular manipulator Jacobian.
+	In this case, returns 6xn manipulator Jacobian.
 	"""
 	def get_objective_jacobian(self):
 		# compute joint states and joint info
@@ -369,17 +441,18 @@ class BaxterRotationController(BaxterIKController):
 	Computes the nullspace for performing lower-order controller commands subject to this controller.
 	"""
 	def get_objective_nullspace(self):
-		# get (3xn) objective Jacobian
+		# get (6xn) objective Jacobian
 		J = self.get_objective_jacobian()
+
+		# compute (nx6) pseudoinverse of Jacobian
+		Jinv = np.linalg.pinv(J)
 
 		# get (nxn) identity
 		ndof = len(J[0])
 		I = np.identity(ndof)
 
-		# compute nullspace
-		# nullspace should be identity
-		# lower-order controller command should not conflict with rotation command
-		N = I # (nxn)
+		# compute nullspace (make sure Jinv and J are numpy arrays)
+		N = I - self.matrixMultiply(Jinv, J) # (nxn) = (nxn) - (nx6) * (6xn)
 
 		if self.verbose:
 			print("BaxterRotationController: computed %dx%d nullspace" % (len(N), len(N[0])))
@@ -389,18 +462,22 @@ class BaxterRotationController(BaxterIKController):
 	"""
 	Projects a lower objective controller command into the nullspace of this controller.
 
+	@param lower_priority_controller_name, the string indicating the name of the lower priority controller being projected
 	@param dq_lower_priority, the controller command from the lower priority controller
 	@return the change in configuration of the lower priority controller projected into the nullspace of this controller
 	"""
-	def nullspace_projection(self, dq_lower_priority):
+	def nullspace_projection(self, lower_priority_controller_name, dq_lower_priority):
 		# get objective nullspace
 		N = self.get_objective_nullspace()
 
 		# project controller objective into nullspace as numpy array
-		dq_projected_mat = self.matrixMultiply(N, dq_lower_priority)
+		if lower_priority_controller_name == "BaxterScrewController":
+			dq_projected = dq_lower_priority # screw controller only affects wrist roll, should not conflict, so no projection needed
+		else:
+			dq_projected = self.matrixMultiply(N, dq_lower_priority)
 
 		# convert numpy array to list
-		dq_projected = list(dq_projected_mat)
+		# dq_projected = list(dq_projected_mat)
 
 		if self.verbose:
 			print("BaxterRotationController: computed %dx1 projected controller command" % len(dq_projected))

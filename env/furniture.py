@@ -925,8 +925,8 @@ class FurnitureEnv(metaclass=EnvMeta):
                 # left_pos_world, left_quat_world = self._controller.bullet_base_pose_to_world_pose(
                 #     (left_pos, left_quat)
                 # ) # TODO
-                # print("left gripper pos world: ", left_pos_world, "left controller gripper quat world: ", left_quat_world) # TODO
-                # print("right controller gripper pos: ", right_pos_world, "right controller gripper quat: ", right_quat_world) # TODO
+                # print("left gripper pos world: ", left_pos_world, "left gripper quat world: ", left_quat_world) # TODO
+                # print("right gripper pos: ", right_pos_world, "right gripper quat: ", right_quat_world) # TODO
                 # print("seat pos sim: ", self._get_pos('3_chair_seat'), "seat quat sim: ", self._get_quat('3_chair_seat')) # TODO
 
             input_1 = self._make_input(action[:7], self._right_hand_quat)
@@ -2195,8 +2195,15 @@ class FurnitureEnv(metaclass=EnvMeta):
         of that object in the base frame.
         """
 
-        pos_in_world = self.sim.data.get_body_xpos(name)
-        rot_in_world = self.sim.data.get_body_xmat(name).reshape((3, 3))
+        if name in self.sim.model.body_names:
+            pos_in_world = self.sim.data.get_body_xpos(name)
+            rot_in_world = self.sim.data.get_body_xmat(name).reshape((3, 3))
+        if name in self.sim.model.geom_names:
+            pos_in_world = self.sim.data.get_geom_xpos(name)
+            rot_in_world = self.sim.data.get_geom_xmat(name).reshape((3, 3))
+        if name in self.sim.model.site_names:
+            pos_in_world = self.sim.data.get_site_xpos(name)
+            rot_in_world = self.sim.data.get_site_xmat(name).reshape((3, 3))
         pose_in_world = T.make_pose(pos_in_world, rot_in_world)
 
         base_pos_in_world = self.sim.data.get_body_xpos("base")
