@@ -60,12 +60,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
     """
     def run_controller(self, config):
         ### SETUP ###
-        # sets up environment and robot
-        if config.furniture_name is not None:
-            config.furniture_id = furniture_name2id[config.furniture_name]
         ob = self.reset(config.furniture_id, config.background)
         # reset swivel base
-        if config.furniture_id == 7: # swivel chair
+        if config.furniture_name == "swivel_chair_0700": # swivel chair
             print("reseting swivel chair base pose")
             self._set_qpos('1_chair_base',
                 [-0.1, 0.0, 0.0144],

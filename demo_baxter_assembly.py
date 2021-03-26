@@ -53,6 +53,7 @@ def main(args):
     	env_name = 'FurnitureBaxterAssemblyEnv'
     args.env = env_name
     args.furniture_id = furniture_id
+    args.furniture_name = furniture_name
     args.background = background_name
 
     print()
