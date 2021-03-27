@@ -576,10 +576,11 @@ class FurnitureEnv(metaclass=EnvMeta):
 
         connect = a[14]
         if connect > 0 and self._cursor_selected[0] and self._cursor_selected[1]:
-            if self._debug:
+            if True:#self._debug: # TODO
                 print('try connect ({} and {})'.format(self._cursor_selected[0],
                                                        self._cursor_selected[1]))
-            self._try_connect(self._cursor_selected[0], self._cursor_selected[1])
+            result = self._try_connect(self._cursor_selected[0], self._cursor_selected[1])
+            print("connection result ", result)
         elif self._connect_step > 0:
             self._connect_step = 0
 

@@ -342,7 +342,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     self._controller = Baxter6DPoseController(
                         bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
                         robot_jpos_getter=self._robot_jpos_getter,
-                        verbose=False, potential = potential
+                        verbose=False, potential_threshold = potential
                     )
                 self._controller.set_goal(control_arm, goal_pos, goal_quat)
                 run = "controller"
