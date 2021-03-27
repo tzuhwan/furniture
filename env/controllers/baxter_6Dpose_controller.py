@@ -36,7 +36,7 @@ class Baxter6DPoseController(BaxterIKController):
 
 	Inherited from Controller base class.
 	"""
-	def __init__(self, bullet_data_path, robot_jpos_getter, verbose=True, debug=False):
+	def __init__(self, bullet_data_path, robot_jpos_getter, verbose=True, debug=False, potential_threshold=0.0005):
 		print("Baxter6DPoseController: Initializing 6DPose Controller")
 
 		# initialize super class
@@ -50,20 +50,29 @@ class Baxter6DPoseController(BaxterIKController):
 		self.max_potential = 100
 
 		# potential threshold (potential less than this means no update will be performed)
-		self.potential_threshold = 0.0005
+		self.potential_threshold = potential_threshold
 
 		# controller objective met flag
 		self.objective_met = False
 
 		# set move and rotate speed, for scaling motions; these are equivalent to controller gains
-		self.move_speed = 0.025
-		self.rotate_speed = 0.05
+		self.default_move_speed = 0.025
+		self.move_speed = self.default_move_speed
+		self.default_rotate_speed = 0.05
+		self.rotate_speed = self.default_rotate_speed
 
 		# set arm speed, which controls how fast the arm performs the commands
 		self.arm_step = 2
 
 		# initialize control arm
 		self.control_arm = ""
+
+		# initialize variables for printing potentials
+		self.num_iters = 0
+		self.num_iters_print = 50
+
+		# initialize variable for tracking convergence of controller
+		self.potentials = np.ones(20)
 
 		# initialize current pose
 		self.set_current_pose()
@@ -92,6 +101,15 @@ class Baxter6DPoseController(BaxterIKController):
 		# set current pose and compute potential
 		self.set_current_pose()
 		pot = self.potential()
+		self.potentials[self.num_iters%len(self.potentials)] = pot
+		self.num_iters += 1
+
+		# update motion speed based on convergence of controller
+		if np.std(self.potentials) <= 6e-5:
+			self.set_motion_speeds(move_speed=(self.move_speed + 0.01))
+		else:
+			if self.move_speed != self.default_move_speed:
+				self.set_motion_speeds(move_speed=self.default_move_speed)
 
 		# initialize velocities for proportional controller
 		velocities = np.zeros(14)
@@ -221,7 +239,8 @@ class Baxter6DPoseController(BaxterIKController):
 			self.move_speed = move_speed
 		if rotate_speed is not None:
 			self.rotate_speed = rotate_speed
-		print("Baxter6DPoseController: Set new motion speeds, move_speed=%f, rotate_speed=%f" % (self.move_speed, self.rotate_speed))
+		if self.debug:
+			print("Baxter6DPoseController: Set new motion speeds, move_speed=%f, rotate_speed=%f" % (self.move_speed, self.rotate_speed))
 		return
 
 	"""
@@ -248,6 +267,27 @@ class Baxter6DPoseController(BaxterIKController):
 
 		return zip(joint_idxs, joint_names, joint_lower, joint_upper, joint_ranges)
 
+	"""
+	Checks for joint limits.
+	"""
+	def check_joint_limits(self):
+		# compute relevant joint info
+		joint_infos = list(self.get_relevant_joint_info())
+
+		# get current joint states
+		curr_q = self.robot_jpos_getter()
+
+		# compare current joints to joint limits
+		for i in range(len(curr_q)):
+			j_idx, j_name, j_lower, j_upper, j_range = joint_infos[i]
+			print("joint %s, current position %f, lower limit %f, upper limit %f"
+				% (j_name, curr_q[i], j_lower, j_upper)
+			)
+			if (curr_q[i] <= j_lower) or (abs(curr_q[i] - j_lower) <= 1e-3):
+				print("joint %s pretty close to lower limit" % j_name)
+			if (curr_q[i] >= j_upper) or (abs(curr_q[i] - j_upper) <= 1e-3):
+				print("joint %s pretty close to upper limit" % j_name)
+
 	#################################################
 	### POTENTIAL FIELD AND CONTROL LAW FUNCTIONS ###
 	#################################################
@@ -269,9 +309,11 @@ class Baxter6DPoseController(BaxterIKController):
 
 		# compute potential
 		pot = 0.5 * dist * dist
-		print("Baxter6DPoseController: potential %f" % pot)
+		if (self.num_iters % self.num_iters_print) == 0:
+			print("Baxter6DPoseController: potential %f" % pot)
 		if self.verbose:
 			print("Baxter6DPoseController: position distance %f, rotation distance %f" % (dist_pos, dist_quat))
+		if self.debug:
 			print("curr pos: ", self.curr_pos, "curr quat: ", self.curr_quat)
 			print("goal pos: ", self.goal_pos, "goal quat: ", self.goal_quat)
 		return min(pot, self.max_potential)

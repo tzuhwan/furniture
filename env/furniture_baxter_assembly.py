@@ -106,6 +106,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     verbose=False
                 )
                 self._controller.set_goal(control_arm, goal_pos, goal_quat)
+                self._controller.set_arm_speed(5)
                 run = "controller"
             elif action[0] == "BaxterObject6DPoseController":
                 control_arm, object_name, object_goal_pos, object_goal_quat = action[1]
