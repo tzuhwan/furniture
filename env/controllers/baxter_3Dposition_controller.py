@@ -36,15 +36,16 @@ class Baxter3DPositionController(BaxterIKController):
 
 	Inherited from Controller base class.
 	"""
-	def __init__(self, bullet_data_path, robot_jpos_getter, verbose=True, debug=False, potential_threshold=0.0005):
+	def __init__(self, bullet_data_path, robot_jpos_getter, verbose=True, debug=False, suppress_output=False, potential_threshold=0.0005):
 		print("Baxter3DPositionController: Initializing 3DPosition Controller")
 
 		# initialize super class
 		super().__init__(bullet_data_path, robot_jpos_getter)
 
-		# set debug and verbose flags
-		self.debug = debug
+		# set verbose, debug, and suppress_output flags
 		self.verbose = verbose
+		self.debug = debug
+		self.suppress_output = suppress_output
 
 		# max potential
 		self.max_potential = 100
@@ -56,10 +57,10 @@ class Baxter3DPositionController(BaxterIKController):
 		self.objective_met = False
 
 		# set move and rotate speed, for scaling motions; these are equivalent to controller gains
-		self.defualt_move_speed = 0.025
-		self.move_speed = self.defualt_move_speed
-		self.defualt_rotate_speed = 0.05
-		self.rotate_speed = self.defualt_rotate_speed
+		self.default_move_speed = 0.025
+		self.move_speed = self.default_move_speed
+		self.default_rotate_speed = 0.05
+		self.rotate_speed = self.default_rotate_speed
 
 		# set arm speed, which controls how fast the arm performs the commands
 		self.arm_step = 2
@@ -116,7 +117,8 @@ class Baxter3DPositionController(BaxterIKController):
 
 		# if potential is low enough, no update needed
 		if pot < self.potential_threshold:
-			print("Baxter3DPositionController: Goal met! No update needed.")
+			if not self.suppress_output:
+				print("Baxter3DPositionController: Goal met! No update needed.")
 			self.objective_met = True
 			return velocities
 		else:
@@ -159,7 +161,8 @@ class Baxter3DPositionController(BaxterIKController):
         # we now know arm is either "left" or "right"
 		self.control_arm = control_arm
 		self.goal_pos = np.array(goal_pos)
-		print("Baxter3DPositionController: New goal set for %s arm" % self.control_arm)
+		if self.verbose:
+			print("Baxter3DPositionController: New goal set for %s arm" % self.control_arm)
 		return
 
 	"""
@@ -247,7 +250,8 @@ class Baxter3DPositionController(BaxterIKController):
 	"""
 	def set_arm_speed(self, arm_speed):
 		self.arm_step = arm_speed
-		print("Baxter3DPositionController: Set new arm speed")
+		if self.verbose:
+			print("Baxter3DPositionController: Set new arm speed")
 		return
 
 	"""
@@ -308,7 +312,7 @@ class Baxter3DPositionController(BaxterIKController):
 
 		# compute potential
 		pot = 0.5 * dist * dist
-		if (self.num_iters % self.num_iters_print) == 0:
+		if (not self.suppress_output) and ((self.num_iters % self.num_iters_print) == 0):
 			print("Baxter3DPositionController: potential %f" % pot)
 		if self.verbose:
 			print("Baxter3DPositionController: position distance %f, rotation distance %f" % (dist_pos, dist_quat))
