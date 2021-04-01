@@ -36,15 +36,16 @@ class Baxter6DPoseController(BaxterIKController):
 
 	Inherited from Controller base class.
 	"""
-	def __init__(self, bullet_data_path, robot_jpos_getter, verbose=True, debug=False, potential_threshold=3e-5):
+	def __init__(self, bullet_data_path, robot_jpos_getter, verbose=True, debug=False, suppress_output=False, potential_threshold=3e-5):
 		print("Baxter6DPoseController: Initializing 6DPose Controller")
 
 		# initialize super class
 		super().__init__(bullet_data_path, robot_jpos_getter)
 
-		# set debug and verbose flags
+		# set verbose, debug, and suppress_output flags
 		self.verbose = verbose
 		self.debug = debug
+		self.suppress_output = suppress_output
 
 		# max potential
 		self.max_potential = 100
@@ -117,7 +118,8 @@ class Baxter6DPoseController(BaxterIKController):
 
 		# if potential is low enough, no update needed
 		if pot < self.potential_threshold:
-			print("Baxter6DPoseController: Goal met! No update needed.")
+			if not self.suppress_output:
+				print("Baxter6DPoseController: Goal met! No update needed.")
 			self.objective_met = True
 			return velocities
 		else:
@@ -161,7 +163,8 @@ class Baxter6DPoseController(BaxterIKController):
 		self.control_arm = control_arm
 		self.goal_pos = np.array(goal_pos)
 		self.goal_quat = np.array(goal_quat)
-		print("Baxter6DPoseController: New goal set for %s arm" % self.control_arm)
+		if self.verbose:
+			print("Baxter6DPoseController: New goal set for %s arm" % self.control_arm)
 		return
 
 	"""
@@ -249,7 +252,8 @@ class Baxter6DPoseController(BaxterIKController):
 	"""
 	def set_arm_speed(self, arm_speed):
 		self.arm_step = arm_speed
-		print("Baxter6DPoseController: Set new arm speed")
+		if self.verbose:
+			print("Baxter6DPoseController: Set new arm speed")
 		return
 
 	"""
@@ -311,7 +315,7 @@ class Baxter6DPoseController(BaxterIKController):
 
 		# compute potential
 		pot = 0.5 * dist * dist
-		if self.debug: # (self.num_iters % self.num_iters_print) == 0:
+		if (not self.suppress_output) and ((self.num_iters % self.num_iters_print) == 0):
 			print("Baxter6DPoseController: potential %f" % pot)
 			print("Baxter6DPoseController: position distance %f, rotation distance %f" % (dist_pos, dist_quat))
 			print("curr pos: ", self.curr_pos, "curr quat: ", self.curr_quat)

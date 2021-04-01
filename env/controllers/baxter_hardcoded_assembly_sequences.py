@@ -107,6 +107,7 @@ class BaxterHardcodedAssemblySequences():
 		self.init_swivelchair_cnctpolebase_sequence()
 		self.init_swivelchair_pickseat_sequence()
 		self.init_swivelchair_assembly_sequence()
+		self.init_swivelchair_assembly_planning_sequence()
 		return
 
 	"""
@@ -171,9 +172,7 @@ class BaxterHardcodedAssemblySequences():
 		return
 
 	"""
-	Initialize sequence for assembly full swivel chair.
-
-	Note: alternate controllers are listed underneath working controllers.
+	Initialize sequence for assembly of full swivel chair.
 	"""
 	def init_swivelchair_assembly_sequence(self):
 		# initialize useful poses
@@ -211,5 +210,51 @@ class BaxterHardcodedAssemblySequences():
 			("open-gripper", "left"),
 			("Baxter6DPoseController", ("left", self.swivelchair_cnctplce_pos_left, self.swivelchair_cnctplce_quat_left)),
 			("Baxter6DPoseController", ("left", self.swivelchair_cnctpost_pos_left, self.swivelchair_cnctpost_quat_left))
+		]
+		return
+
+	"""
+	Initialize sequence for assembly of full swivel chair, with composition walkout planning.
+	"""
+	def init_swivelchair_assembly_planning_sequence(self):
+		# initialize useful poses
+		self.swivelchair_seatcnct_pos_left = [0.68, 0.0, 0.35]
+		self.swivelchair_seatcnct_quat_left = [0.6848843787594499, -0.7232040344156025, -0.06457352826104447, 0.06115203826691636] #[0.68661902, -0.72083896, -0.08676259, 0.03765338]
+		self.swivelchair_cnctplce_pos_left = [0.68, 0.0, 0.4]
+		self.swivelchair_cnctplce_quat_left = [0.6848843787594499, -0.7232040344156025, -0.06457352826104447, 0.06115203826691636]
+		self.swivelchair_cnctpost_pos_left = [0.83195645, 0.45, 0.20856081]
+		self.swivelchair_cnctpost_quat_left = [0.70522274, -0.70528875, -0.02417812, 0.06814758]
+		# initialize sequence
+		self.swivelchair_assembly_planning_sequence = [
+			# connect pole to base
+			("Baxter6DPoseController", ("right", self.swivelchair_poleprep_pos_right, self.swivelchair_poleprep_quat_right, 8)),
+			("Baxter6DPoseController", ("right", self.swivelchair_polepick_pos_right, self.swivelchair_polepick_quat_right, 8)),
+			("close-gripper", "right"),
+			("Baxter6DPoseController", ("right", self.swivelchair_polepost_pos_right, self.swivelchair_polepost_quat_right, 8)),
+			("plan", ("right", "insert-into"),
+				(
+					("BaxterRotationController", ("right", self.swivelchair_polecnct_quat_right)),
+					("Baxter3DPositionController", ("right", self.swivelchair_polecnct_pos_right))
+				)
+			),
+			("connect", ""),
+			("Baxter6DPoseController", ("right", self.swivelchair_cnctplce_pos_right, self.swivelchair_cnctplce_quat_right, 8)),
+			("open-gripper", "right"),
+			("Baxter6DPoseController", ("right", self.swivelchair_cnctpost_pos_right, self.swivelchair_cnctpost_quat_right, 5)),
+			# connect seat to pole
+			("Baxter6DPoseController", ("left", self.swivelchair_seatprep_pos_left, self.swivelchair_seatprep_quat_left, 8)),
+			("Baxter6DPoseController", ("left", self.swivelchair_seatpick_pos_left, self.swivelchair_seatpick_quat_left, 8)),
+			("close-gripper", "left"),
+			("Baxter6DPoseController", ("left", self.swivelchair_seatpost_pos_left, self.swivelchair_seatpost_quat_left, 8)),
+			("plan", ("left", "insert-into"),
+				(
+					("BaxterRotationController", ("left", self.swivelchair_seatcnct_quat_left)),
+					("Baxter3DPositionController", ("left", self.swivelchair_seatcnct_pos_left))
+				)
+			),
+			("connect", ""),
+			("open-gripper", "left"),
+			("Baxter6DPoseController", ("left", self.swivelchair_cnctplce_pos_left, self.swivelchair_cnctplce_quat_left, 5)),
+			("Baxter6DPoseController", ("left", self.swivelchair_cnctpost_pos_left, self.swivelchair_cnctpost_quat_left, 8))
 		]
 		return

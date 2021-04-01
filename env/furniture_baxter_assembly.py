@@ -19,6 +19,7 @@ from env.controllers import BaxterRotationController
 from env.controllers import BaxterAlignmentController
 from env.controllers import BaxterScrewController
 from env.controllers import BaxterHardcodedAssemblySequences
+from env.controller_planner import ControlBasis
 
 """
 Baxter robot environment with furniture assembly task.
@@ -35,11 +36,14 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         # initialize FurnitureBaxterEnv
         super().__init__(config)
 
+        # initialize control basis
+        self.cb = ControlBasis()
+
         # read in hardcoded action sequences
         self.hardcoded_action_sequences = BaxterHardcodedAssemblySequences()
 
         # initialize sequence of actions, where each action is (action/controller, params) tuple
-        self._action_sequence = self.hardcoded_action_sequences.swivelchair_assembly_sequence
+        self._action_sequence = self.hardcoded_action_sequences.swivelchair_assembly_planning_sequence
 
     """
     Takes a simulation step with @a and computes reward.
@@ -78,11 +82,11 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             self.render()
 
         from util.video_recorder import VideoRecorder
-        vr = VideoRecorder()
-        vr.add(self.render('rgb_array'))
+        self.vr = VideoRecorder()
+        self.vr.add(self.render('rgb_array'))
 
         # initialize gripper states (both open)
-        gripper_grabs = [-1, -1]
+        self.gripper_grabs = [-1, -1]
 
         ### ACTION SEQUENCE ###
         # start action sequence
@@ -96,17 +100,38 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             action = self._action_sequence[i]
             run = ""
             if isinstance(action[0], tuple):
-                self.initialize_multiobjective_controllers(action)
+                controllers_goals = action
+                self.cb.initialize_controllers_and_goals(controllers_goals,
+                    bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
+                    robot_jpos_getter=self._robot_jpos_getter
+                )
+                self.composition = [controller_name for controller_name, goal_info in controllers_goals]
+                run = "multiobjective-controller"
+            elif action[0] == "plan":
+                control_arm, action_name = action[1]
+                controllers_goals = action[2]
+                self.cb.initialize_controllers_and_goals(controllers_goals,
+                    bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
+                    robot_jpos_getter=self._robot_jpos_getter
+                )
+                compositions = self.walkout_controller_compositions(control_arm, action_name)
+                print("planned compositions: ", compositions)
+                self.composition = compositions[0]
+                print("executing composition %s" % self.cb.multiobjective_controller_string(self.composition))
                 run = "multiobjective-controller"
             elif action[0] == "Baxter6DPoseController":
-                control_arm, goal_pos, goal_quat = action[1]
+                if len(action[1]) == 3:
+                    control_arm, goal_pos, goal_quat = action[1]
+                    arm_speed = 8
+                else:
+                    control_arm, goal_pos, goal_quat, arm_speed = action[1]
                 self._controller = Baxter6DPoseController(
                     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
                     robot_jpos_getter=self._robot_jpos_getter,
                     verbose=False
                 )
                 self._controller.set_goal(control_arm, goal_pos, goal_quat)
-                self._controller.set_arm_speed(5)
+                self._controller.set_arm_speed(arm_speed)
                 run = "controller"
             elif action[0] == "BaxterObject6DPoseController":
                 control_arm, object_name, object_goal_pos, object_goal_quat = action[1]
@@ -157,9 +182,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             elif action[0] == "close-gripper":
                 control_arm = action[1]
                 if control_arm == "left":
-                    gripper_grabs[1] = 1
+                    self.gripper_grabs[1] = 1
                 elif control_arm == "right":
-                    gripper_grabs[0] = 1
+                    self.gripper_grabs[0] = 1
                 else:
                     print("FurnitureBaxterAssemblyEnv: unrecognized arm %s" % control_arm)
                     raise NameError
@@ -167,9 +192,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             elif action[0] == "open-gripper":
                 control_arm = action[1]
                 if control_arm == "left":
-                    gripper_grabs[1] = -1
+                    self.gripper_grabs[1] = -1
                 elif control_arm == "right":
-                    gripper_grabs[0] = -1
+                    self.gripper_grabs[0] = -1
                 else:
                     print("FurnitureBaxterAssemblyEnv: unrecognized arm %s" % control_arm)
                     raise NameError
@@ -195,9 +220,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     # compute controller update
                     velocities = self._controller.get_control()
                     # perform controller command
-                    self.perform_command(velocities, gripper_grabs, True, (run == "object-controller"))
+                    self.perform_command(velocities, self.gripper_grabs, True, (run == "object-controller"))
                     # render
-                    vr.add(self.render('rgb_array'))
+                    self.vr.add(self.render('rgb_array'))
             elif run == "multiobjective-controller":
                 objective_met = False
                 # run controller
@@ -205,20 +230,20 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     # set flag so unity will update
                     self._unity_updated = False
                     # compute controller update
-                    velocities, objective_met = self.compute_multiobjective_controller_update()
+                    velocities, objective_met = self.cb.compute_multiobjective_controller_update(self.composition)
                     # perform controller command
-                    self.perform_multiobjective_command(velocities, gripper_grabs)
+                    self.perform_multiobjective_command(velocities, self.gripper_grabs, self.composition)
                     # render
-                    vr.add(self.render('rgb_array'))
+                    self.vr.add(self.render('rgb_array'))
             elif run == "gripper":
                 # set flag so unity will update
                 self._unity_updated = False
                 # set velocities to 0 for arm joints
                 velocities = np.zeros(14)
                 # perform command
-                self.perform_command(velocities, gripper_grabs, False)
+                self.perform_command(velocities, self.gripper_grabs, False)
                 # render
-                vr.add(self.render('rgb_array'))
+                self.vr.add(self.render('rgb_array'))
                 # sleep
                 time.sleep(2)
             else: # run == "connect":
@@ -227,17 +252,17 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 # perform connection
                 self.perform_connection()
                 # render
-                vr.add(self.render('rgb_array'))
+                self.vr.add(self.render('rgb_array'))
 
             if isinstance(action[0], tuple):
-                print("FurnitureBaxterAssemblyEnv: finished action %s" % self.multiobjective_controller_string(action))
+                print("FurnitureBaxterAssemblyEnv: finished action %s" % self.multiobjective_controller_string(self.composition))
             else:
                 print("FurnitureBaxterAssemblyEnv: finished action %s" % action[0])
 
         print("FurnitureBaxterAssemblyEnv: Goal met!")
         time.sleep(2)
         if config.record_video:
-            vr.save_video('FurnitureBaxterAssemblyEnv_test.mp4') # FurnitureBaxterAssemblyEnv_test.mp4
+            self.vr.save_video('FurnitureBaxterAssemblyEnv_test.mp4') # FurnitureBaxterAssemblyEnv_test.mp4
         time.sleep(2)
         print("FurnitureBaxterAssemblyEnv returning")
 
@@ -351,125 +376,15 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         return pose_in_world
 
     """
-    Creates a string representing the name of a multi-objective controller.
-
-    @param controllers, the tuple of (controller, params) tuples involved in the action
-    @return the string indicating the composition (subject-to relations) involved in the multi-objective controller
-    """
-    def multiobjective_controller_string(self, controllers):
-        action = ""
-        # construct action string based on controllers
-        for i in range(len(controllers)):
-            action += controllers[len(controllers)-i-1][0]
-            if i < len(controllers) - 1:
-                action += " <| "
-
-        return action
-
-    """
-    Initializes the list of controllers for multi-objective actions.
-
-    @param action, the tuple of (controller, params) tuples involved in the action
-    @post all controllers in the muli-objective behavior are initialized and goals set
-    """
-    def initialize_multiobjective_controllers(self, action):
-        self._controllers = []
-        # initialize controllers in action
-        for controller in action:
-            if controller[0] == "Baxter6DPoseController":
-                control_arm, goal_pos, goal_quat = controller[1]
-                self._controllers.append(
-                    Baxter6DPoseController(
-                        bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
-                        robot_jpos_getter=self._robot_jpos_getter,
-                        verbose=False
-                    )
-                )
-                self._controllers[-1].set_goal(control_arm, goal_pos, goal_quat)
-            elif controller[0] == "Baxter3DPositionController":
-                control_arm, goal_pos = controller[1]
-                self._controllers.append(
-                    Baxter3DPositionController(
-                        bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
-                        robot_jpos_getter=self._robot_jpos_getter,
-                        verbose=False
-                    )
-                )
-                self._controllers[-1].set_goal(control_arm, goal_pos)
-            elif controller[0] == "BaxterRotationController":
-                control_arm, goal_quat = controller[1]
-                self._controllers.append(
-                    BaxterRotationController(
-                        bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
-                        robot_jpos_getter=self._robot_jpos_getter,
-                        verbose=False
-                    )
-                )
-                self._controllers[-1].set_goal(control_arm, goal_quat)
-            elif controller[0] == "BaxterAlignmentController":
-                control_arm, ee_axis, align_pos = controller[1]
-                self._controllers.append(
-                    BaxterAlignmentController(
-                        bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
-                        robot_jpos_getter=self._robot_jpos_getter,
-                        verbose=False
-                    )
-                )
-                self._controllers[-1].set_goal(control_arm, ee_axis, align_pos)
-            elif controller[0] == "BaxterScrewController":
-                control_arm, rotation = controller[1]
-                self._controllers.append(
-                    BaxterScrewController(
-                        bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
-                        robot_jpos_getter=self._robot_jpos_getter,
-                        verbose=False
-                    )
-                )
-                self._controllers[-1].set_goal(control_arm, rotation)
-            else:
-                print("FurnitureBaxterControllerPlannerEnv: controller type %s not recognized" % controller)
-                raise NameError
-
-        return
-
-    """
-    Computes the multi-objective controller update by composing controller commands.
-
-    @param none
-    @return the combined controller update from the composition of the controllers
-    @return boolean indicating if the combined objective is met
-    """
-    def compute_multiobjective_controller_update(self):
-        dq_combined = np.zeros(14)
-        lower_priority_controller_name = ""
-        objective_met = []
-        # compute combined control command
-        for i in range(len(self._controllers)):
-            # compute index, from lowest priority to highest
-            idx = len(self._controllers) - i - 1
-            # compute controller command, index from lowest priority to highest
-            dq = self._controllers[idx].get_control()
-            # compute combined command using nullspace projection
-            dq_combined = dq + self._controllers[idx].nullspace_projection(lower_priority_controller_name, dq_combined)
-            # check if objective met
-            objective_met.insert(0, self._controllers[idx].objective_met)
-            # update controller name
-            lower_priority_controller_name = self._controllers[idx].controller_name()
-            # try connection
-            # if self._controllers[idx].objective_met:
-            #     self.perform_connection()
-
-        return dq_combined, np.all(objective_met)
-
-    """
     Performs the given multi-objective controller command.
     Copied from part of _step_continuous() function in furniture.py
 
     @param velocities, the change in configuration induced by the multi-objective controller
     @param gripper_grabs, flags indicating whether [right, left] grippers have closed
         where 1 means gripper is closed and -1 means gripper is open
+    @param composition, the list of controllers indicating the order of the composition
     """
-    def perform_multiobjective_command(self, velocities, gripper_grabs):
+    def perform_multiobjective_command(self, velocities, gripper_grabs, composition):
         # set up low action
         low_action = np.concatenate([velocities, gripper_grabs])
 
@@ -479,9 +394,153 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 self._do_simulation(ctrl)
 
                 if i + 1 < self._action_repeat:
-                    velocities, _ = self.compute_multiobjective_controller_update()
+                    velocities, _ = self.cb.compute_multiobjective_controller_update(composition)
                     low_action = np.concatenate([velocities, gripper_grabs])
                     ctrl = self._setup_action(low_action)
+
+        return
+
+    ##############################################################
+    ### WALKOUTS FOR DETERMINING CONTROLLER COMPOSITION ONLINE ###
+    ##############################################################
+
+    """
+    Selects controller compositions for given action name.
+    """
+    def walkout_controller_compositions(self, control_arm="left", action_name="screw-into"):
+        # get initial joint state
+        self.walkout_start_state = self.get_current_qpos()
+
+        # get controllers required to execute given action from temporal decomposition
+        action_controllers = self.cb.temporal_decomposition[action_name]
+
+        # get possible compositions
+        composition_possibilities = self.cb.get_possible_controller_compositions(action_controllers)
+
+        # initialize list of probabilities
+        composition_probabilities = []
+        composition_iterations = []
+
+        # initialize counter
+        count = 0
+
+        print("********** PERFORMING WALKOUT, NOT ACTUAL TASK EXECUTION **********")
+        self.cb.set_controllers_suppress_output(True)
+
+        # compute probability of achieving combined effects for each composition using a walkout
+        for composition in composition_possibilities:
+            count += 1
+            print("FurnitureBaxterControllerPlanner: performing walkout for composition %s (%d of %d)"
+                % (self.cb.multiobjective_controller_string(composition), count, len(composition_possibilities))
+            )
+
+            # compute walkout from initial start state
+            prob, num_iters = self.perform_walkout(composition)
+
+            # store computed probability in list
+            composition_probabilities.append(prob)
+            composition_iterations.append(num_iters)
+
+            # reset sim to initial state
+            print("FurnitureBaxterControllerPlanner: reseting to start state")
+            self.set_current_qpos(self.walkout_start_state)
+
+        # find max composition probability and fewest iterations
+        max_prob = max(composition_probabilities) # max probability ensures composition is most likely to succeed
+        min_iter = min(composition_iterations) # if min iterations is less than fixed parameter, then probability=1
+        compositions_probabilities_iterations = [(c, p, i) for c, p, i in zip(composition_possibilities, composition_probabilities, composition_iterations)]
+        print("***** COMPOSITIONS, PROBABILITIES, AND ITERATIONS *****")
+        for c, p, i in compositions_probabilities_iterations:
+            print("controller %s, probability of success %d, iterations %d"
+                % (self.cb.multiobjective_controller_string(c), p, i)
+            )
+
+        # get compositions that achieve max probability and fewest iterations
+        compositions = [c for c, p, i in zip(composition_possibilities, composition_probabilities, composition_iterations) if (p >= max_prob) and (i <= min_iter)]
+
+        print("********** RESUMING TASK EXECUTION **********")
+        self.cb.set_controllers_suppress_output(False)
+
+        return compositions
+
+    """
+    Performs walkout to test different controller compositions for the given action name.
+    """
+    def perform_walkout(self, controllers):
+        # initialize flag for objective met
+        objective_met = False
+
+        # initialize counter
+        num_iters = 0
+
+        # compute initial distance from goal
+        init_potential = 0
+        for c in controllers:
+            init_potential += self.cb.controllers[c].potential()
+
+        # run controller
+        while (not objective_met) and (num_iters <= 200): # TODO initialize parameter somewhere
+            # set flag so unity will update
+            self._unity_updated = False
+            # compute controller update
+            velocities, objective_met = self.cb.compute_multiobjective_controller_update(controllers)
+            num_iters += 1
+            # perform controller command
+            self.perform_multiobjective_command(velocities, self.gripper_grabs, controllers)
+            # render
+            self.vr.add(self.render('rgb_array'))
+
+        # initialize probability
+        prob = 1
+
+        # if objective met, probability of reaching goal is 1
+        if objective_met:
+            prob = 1
+        else: # num_iters > 700
+            # compute final distance from goal
+            final_potential = 0
+            for c in controllers:
+                final_potential += self.cb.controllers[c].potential()
+            # if final potential is greater than initial, composition would not have reached goal
+            if final_potential > init_potential:
+                prob = 0
+            else: # consider progress towards goal
+                prob = (init_potential - final_potential) / init_potential
+
+        return prob, num_iters
+
+    """
+    Gets the current poses of the robot and objects in the simulator.
+
+    @return dictionary of object names to poses
+    """
+    def get_current_qpos(self):
+        # get qpos for robot
+        qpos = {
+            'r_gripper': self.sim.data.qpos[self._ref_gripper_right_joint_pos_indexes],
+            'l_gripper': self.sim.data.qpos[self._ref_gripper_left_joint_pos_indexes],
+            'baxter_qpos': self.sim.data.qpos[self._ref_joint_pos_indexes]
+        }
+        # get qpos for objects
+        qpos.update({x: self._get_qpos(x) for x in self._object_names})
+
+        return qpos
+
+    """
+    Sets the current poses of the robot and objects in the simulator.
+
+    @param qpos, a dictionary of object names to poses
+    @post simulator objects are put at given poses
+    """
+    def set_current_qpos(self, qpos):
+        # set qpos for robot
+        self.sim.data.qpos[self._ref_gripper_right_joint_pos_indexes] = qpos['r_gripper']
+        self.sim.data.qpos[self._ref_gripper_left_joint_pos_indexes] = qpos['l_gripper']
+        self.sim.data.qpos[self._ref_joint_pos_indexes] = qpos['baxter_qpos']
+        # set qpos for objects
+        for x in self._object_names:
+            obj_qpos = qpos[x]
+            self._set_qpos(x, obj_qpos[:3], obj_qpos[3:])
 
         return
 
