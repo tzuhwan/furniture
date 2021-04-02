@@ -230,7 +230,7 @@ class BaxterHardcodedAssemblySequences():
 			("Baxter6DPoseController", ("right", self.swivelchair_poleprep_pos_right, self.swivelchair_poleprep_quat_right, 8)),
 			("Baxter6DPoseController", ("right", self.swivelchair_polepick_pos_right, self.swivelchair_polepick_quat_right, 8)),
 			("close-gripper", "right"),
-			("Baxter6DPoseController", ("right", self.swivelchair_polepost_pos_right, self.swivelchair_polepost_quat_right, 8)),
+			("Baxter6DPoseController", ("right", self.swivelchair_polepost_pos_right, self.swivelchair_polepost_quat_right, 5)),
 			("plan", ("right", "insert-into"),
 				(
 					("BaxterRotationController", ("right", self.swivelchair_polecnct_quat_right)),
@@ -245,7 +245,7 @@ class BaxterHardcodedAssemblySequences():
 			("Baxter6DPoseController", ("left", self.swivelchair_seatprep_pos_left, self.swivelchair_seatprep_quat_left, 8)),
 			("Baxter6DPoseController", ("left", self.swivelchair_seatpick_pos_left, self.swivelchair_seatpick_quat_left, 8)),
 			("close-gripper", "left"),
-			("Baxter6DPoseController", ("left", self.swivelchair_seatpost_pos_left, self.swivelchair_seatpost_quat_left, 8)),
+			("Baxter6DPoseController", ("left", self.swivelchair_seatpost_pos_left, self.swivelchair_seatpost_quat_left, 5)),
 			("plan", ("left", "insert-into"),
 				(
 					("BaxterRotationController", ("left", self.swivelchair_seatcnct_quat_left)),
