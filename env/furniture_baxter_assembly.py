@@ -481,14 +481,14 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         # run controller
         while (not objective_met) and (num_iters <= 200): # TODO initialize parameter somewhere
             # set flag so unity will update
-            self._unity_updated = False
+            # self._unity_updated = False # TODO do not render walkouts for better sim behavior
             # compute controller update
             velocities, objective_met = self.cb.compute_multiobjective_controller_update(controllers)
             num_iters += 1
             # perform controller command
             self.perform_multiobjective_command(velocities, self.gripper_grabs, controllers)
             # render
-            self.vr.add(self.render('rgb_array'))
+            # self.vr.add(self.render('rgb_array')) # TODO do not render walkouts for better sim behavior
 
         # initialize probability
         prob = 1
