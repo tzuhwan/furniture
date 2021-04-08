@@ -7,6 +7,7 @@ Run `pip install pybullet==1.9.5`.
 """
 
 import os
+import math
 import numpy as np
 from pyquaternion import Quaternion
 
@@ -117,7 +118,7 @@ class Baxter6DPoseController(BaxterIKController):
 
 		# if potential is low enough, no update needed
 		if pot < self.potential_threshold:
-			if not self.suppress_output:
+			if (not self.suppress_output) and ((self.num_iters % self.num_iters_print) == 0):
 				print("Baxter6DPoseController: Goal met! No update needed.")
 			self.objective_met = True
 			return velocities
@@ -309,6 +310,7 @@ class Baxter6DPoseController(BaxterIKController):
 		# compute distance to goal
 		dist_pos = np.linalg.norm(diff[:3])
 		dist_quat = Quaternion.distance(Quaternion(self.curr_quat), Quaternion(self.goal_quat))
+		dist_quat = min(dist_quat , math.pi - dist_quat)
 		dist = dist_pos + dist_quat
 
 		# compute potential

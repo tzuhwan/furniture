@@ -118,7 +118,8 @@ def main(args):
 
 	# run environment
 	if args.plan_compositions:
-		compositions = env.plan_controller_compositions(args)
+		# compositions = env.plan_controller_compositions(args)
+		compositions = env.walkout_controller_compositions(args)
 		print("possible compositions: ", compositions)
 	else:
 		# run assembly of furniture

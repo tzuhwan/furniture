@@ -38,6 +38,8 @@ class ControlBasis:
 			"insert-into": ["Baxter3DPositionController", "BaxterRotationController"]
 		}
 
+		self.num_iters = 0
+
 	def get_controllers(self):
 		return self.control_basis_controllers
 
@@ -91,6 +93,8 @@ class ControlBasis:
 			else:
 				print("FurnitureBaxterControllerPlannerEnv: controller type %s not recognized" % controller)
 				raise NameError
+
+		self.initialize_potential_dicts()
 
 		return self.controllers
 
@@ -169,7 +173,22 @@ class ControlBasis:
 				print("FurnitureBaxterControllerPlannerEnv: controller type %s not recognized" % controller[0])
 				raise NameError
 
+		self.initialize_potential_dicts()
+
 		return self.controllers
+
+	"""
+	Initializes dictionaries for storing recent potential values to track controller convergence.
+	"""
+	def initialize_potential_dicts(self):
+		# initialize dictionary of potentials
+		self.potentials = {}
+
+		# for each controller, initialize list of potentials
+		for c in self.controllers.keys():
+			self.potentials[c] = np.ones(20)
+
+		return
 
 	"""
 	Sets all of the controllers to suppress output the same way.
@@ -189,6 +208,38 @@ class ControlBasis:
 	def get_possible_controller_compositions(self, controllers):
 		possible_compositions = list(permutations(controllers))
 		return possible_compositions
+
+	"""
+	Computes the potentials of each controller in the composition.
+
+	@param composition, the list of controllers in the given composition
+	@return the combined potential of each controller
+	@return boolean indicating if controllers are making progress
+	"""
+	def compute_multiobjective_potentials(self, composition):
+		# initialize multi-objective potential
+		multiobj_pot = 0
+		progress = True
+
+		# for each controller, compute potential
+		for c in composition:
+			# compute potential and update stored potentials
+			pot = self.controllers[c].potential()
+			self.potentials[c][self.num_iters%len(self.potentials[c])] = pot
+			# check if progress is being made
+			if np.std(self.potentials[c]) <= 1e-7:
+				print("ControlBasis: %s potentials not changing" % c)
+				progress = False
+			if np.all(np.diff(self.potentials[c]) > 0):
+				print("ControlBasis: %s potentials increasing" % c)
+				progress = False
+			# compute multi-objective potential
+			multiobj_pot += pot
+
+		# increment number of iterations
+		self.num_iters += 1
+
+		return multiobj_pot, progress
 		
 	"""
 	Computes the multi-objective controller update by composing controller commands.

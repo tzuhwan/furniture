@@ -119,7 +119,7 @@ class BaxterAlignmentController(BaxterIKController):
 
 		# if potential is low enough, no update needed
 		if pot < self.potential_threshold:
-			if not self.suppress_output:
+			if (not self.suppress_output) and ((self.num_iters % self.num_iters_print) == 0):
 				print("BaxterAlignmentController: Goal met! No update needed.")
 			self.objective_met = True
 			return velocities
