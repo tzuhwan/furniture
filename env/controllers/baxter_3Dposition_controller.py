@@ -7,6 +7,7 @@ Run `pip install pybullet==1.9.5`.
 """
 
 import os
+import math
 import numpy as np
 from pyquaternion import Quaternion
 
@@ -117,7 +118,7 @@ class Baxter3DPositionController(BaxterIKController):
 
 		# if potential is low enough, no update needed
 		if pot < self.potential_threshold:
-			if not self.suppress_output:
+			if (not self.suppress_output) and ((self.num_iters % self.num_iters_print) == 0):
 				print("Baxter3DPositionController: Goal met! No update needed.")
 			self.objective_met = True
 			return velocities

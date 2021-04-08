@@ -7,6 +7,7 @@ Run `pip install pybullet==1.9.5`.
 """
 
 import os
+import math
 import numpy as np
 from pyquaternion import Quaternion
 
@@ -135,7 +136,7 @@ class BaxterScrewController(BaxterIKController):
 
 		# if potential is low enough, no update needed
 		if pot < self.potential_threshold:
-			if not self.suppress_output:
+			if (not self.suppress_output) and ((self.num_iters % self.num_iters_print) == 0):
 				print("BaxterScrewController: Goal met! No update needed.")
 			self.objective_met = True
 			return velocities
@@ -328,19 +329,21 @@ class BaxterScrewController(BaxterIKController):
 		if self.control_arm == "left":
 			commanded_change = dq[self.left_wrist_relevant_idx] + (self.rotate_speed * grad) # scale down rotation
 			if (commanded_change <= self.left_lower_limit) or (commanded_change >= self.left_upper_limit):
-				print("BaxterScrewController: too close to joint limits, no update needed")
-				print("BaxterScrewController: current wrist position %f, lower joint limit %f, upper joint limit %f"
-					% (dq[self.left_wrist_relevant_idx], self.left_lower_limit, self.left_upper_limit))
+				if (not self.suppress_output) and ((self.num_iters % self.num_iters_print) == 0):
+					print("BaxterScrewController: too close to joint limits, no update needed")
+					print("BaxterScrewController: current wrist position %f, lower joint limit %f, upper joint limit %f"
+						% (dq[self.left_wrist_relevant_idx], self.left_lower_limit, self.left_upper_limit))
 				self.objective_met = True
 			else:
 				dq[self.left_wrist_relevant_idx] = commanded_change
 		else: # self.control_arm == "right"
 			commanded_change = dq[self.right_wrist_relevant_idx] + (self.rotate_speed * grad) # scale down rotation
 			if (commanded_change <= self.right_lower_limit) or (commanded_change >= self.right_upper_limit):
-				print("BaxterScrewController: too close to joint limits, no update needed")
-				print("BaxterScrewController: current wrist position %f, lower joint limit %f, upper joint limit %f"
-					% (dq[self.right_wrist_relevant_idx], self.right_lower_limit, self.right_upper_limit))
-				self.objective_met = True
+				if (not self.suppress_output) and ((self.num_iters % self.num_iters_print) == 0):
+					print("BaxterScrewController: too close to joint limits, no update needed")
+					print("BaxterScrewController: current wrist position %f, lower joint limit %f, upper joint limit %f"
+						% (dq[self.right_wrist_relevant_idx], self.right_lower_limit, self.right_upper_limit))
+					self.objective_met = True
 			else:
 				dq[self.right_wrist_relevant_idx] = commanded_change
 
