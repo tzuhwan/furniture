@@ -45,12 +45,12 @@ SEARCHES = {
     "ids": search.iterative_deepening_search,
     "sat": search.sat_solve,
 }
-PDDL_GLOBAL_PATH = '/home/kz/Documents/Research/furniture/task_planner/'
-DEFAULT_DOMAIN = PDDL_GLOBAL_PATH + 'furniture_assembly_domain/domain.pddl'
+PDDL_GLOBAL_PATH = os.path.dirname(os.getcwd())
+DEFAULT_DOMAIN = PDDL_GLOBAL_PATH + '/furniture_assembly_domain/domain.pddl'
 
 NUMBER = re.compile(r"\d+")
 
-with open(PDDL_GLOBAL_PATH + 'furniture_assembly_domain/name_mapping.json', 'r') as f:
+with open(PDDL_GLOBAL_PATH + '/furniture_assembly_domain/name_mapping.json', 'r') as f:
     NAME_MAPPING = json.load(f)
     
 

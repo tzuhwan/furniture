@@ -52,7 +52,6 @@ class Baxter6DPoseController(BaxterIKController):
 		self.max_potential = 100
 
 		# potential threshold (potential less than this means no update will be performed)
-		self.potential_threshold = potential # 0.0005
 		self.potential_threshold = potential_threshold # 0.0005
 
 		# controller objective met flag
@@ -108,9 +107,10 @@ class Baxter6DPoseController(BaxterIKController):
 		self.num_iters += 1
 
 		# update motion speed based on convergence of controller
-		if np.std(self.potentials) <= 6e-5:
+		# print("potential spread: ", np.std(self.potentials)) # TODO
+		if np.std(self.potentials) <= 1e-4:#6e-5: # TODO
 			self.set_motion_speeds(move_speed=(self.move_speed + 0.01))
-		else:
+		else: # TODO
 			if self.move_speed != self.default_move_speed:
 				self.set_motion_speeds(move_speed=self.default_move_speed)
 
@@ -244,7 +244,7 @@ class Baxter6DPoseController(BaxterIKController):
 			self.move_speed = move_speed
 		if rotate_speed is not None:
 			self.rotate_speed = rotate_speed
-		if self.debug:
+		if True:#self.debug:
 			print("Baxter6DPoseController: Set new motion speeds, move_speed=%f, rotate_speed=%f" % (self.move_speed, self.rotate_speed))
 		return
 
@@ -318,7 +318,9 @@ class Baxter6DPoseController(BaxterIKController):
 		pot = 0.5 * dist * dist
 		if (not self.suppress_output) and ((self.num_iters % self.num_iters_print) == 0):
 			print("Baxter6DPoseController: potential %f" % pot)
+		if self.verbose:
 			print("Baxter6DPoseController: position distance %f, rotation distance %f" % (dist_pos, dist_quat))
+		if self.debug:
 			print("curr pos: ", self.curr_pos, "curr quat: ", self.curr_quat)
 			print("goal pos: ", self.goal_pos, "goal quat: ", self.goal_quat)
 		return min(pot, self.max_potential)

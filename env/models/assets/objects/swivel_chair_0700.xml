@@ -43,8 +43,8 @@
         </body>
         <body name="3_chair_seat" pos="0.0 0.0 0.31" quat="1 0 0 0">
             <geom conaffinity="0" contype="0" density="0" material="light-wood" mesh="3_chair_seat" name="3_chair_seat_geom" pos="0 0 0" rgba="0.82 0.71 0.55 1" solref="0.001 1" type="mesh" />
-            <geom density="50" name="noviz_collision_3_chair_seat_1" pos="0 -0.005 -0.14" rgba="1 0 0 1" size="0.13 0.12 0.006" solref="0.001 1" type="box" />
-            <geom density="50" euler="1.57 0 0" name="noviz_collision_3_chair_seat_2" pos="0 0.12 0.01" rgba="0 1 0 1" size="0.13 0.14 0.006" solref="0.001 1" type="box" />
+            <geom density="10" name="noviz_collision_3_chair_seat_1" pos="0 -0.005 -0.14" rgba="1 0 0 1" size="0.13 0.12 0.006" solref="0.001 1" type="box" />
+            <geom density="10" euler="1.57 0 0" name="noviz_collision_3_chair_seat_2" pos="0 0.12 0.01" rgba="0 1 0 1" size="0.13 0.14 0.006" solref="0.001 1" type="box" />
             <site name="seat-column,conn_site2" pos="0.0 0.0 -0.15" quat="1 0 0 0" rgba="0 1 1 0.3" size="0.012" />
             <site name="3_chair_seat_corner_site1" pos="0.132 -0.13 -0.138" rgba="0 0 1 0.3" size="0.00684" />
             <site name="3_chair_seat_corner_site2" pos="0.132 0.12 -0.138" rgba="0 0 1 0.3" size="0.00684" />

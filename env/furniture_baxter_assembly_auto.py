@@ -8,6 +8,8 @@ from collections import OrderedDict
 
 import numpy as np
 import copy
+import math
+from pyquaternion import Quaternion
 
 import env.models
 # from env.furniture_baxter import FurnitureEnv
@@ -15,8 +17,9 @@ from env.furniture_baxter import FurnitureBaxterEnv
 import env.transform_utils as T
 from env.controllers import Baxter6DPoseController
 from env.controllers import Baxter3DPositionController
-from env.controllers import BaxterAlignmentController
 from env.controllers import BaxterRotationController
+from env.controllers import BaxterAlignmentController
+from env.controllers import BaxterScrewController
 from itertools import combinations
 
 import env.transform_utils as T
@@ -43,6 +46,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
 
         # initialize FurnitureBaxterEnv
         super().__init__(config)
+
+        # set furniture name
+        self._furniture_name = config.furniture_name
         
         # access to prelabeled poses
         self.pose_reader = PoseReader(connect=config.live_connect_coppeliasim)
@@ -50,23 +56,59 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             self.grasp_pose_dict = self.pose_reader.read_json_file(config.grasp_pose_json_file)
         else:
             self.grasp_pose_dict = self.pose_reader.save_dict()
+            # print("overwriting json file")
+            # self.pose_reader.save_json_file()
+            # print("saved json file")
+
+        # get number of grasp and helper poses for each part
+        self.num_grasp_poses = {}
+        for obj in self.pose_reader.obj_list:
+            obj_name = obj[obj.find("_")+1:]
+            self.num_grasp_poses[obj_name] = {}
+            for part in self.pose_reader.obj_list[obj]:
+                self.num_grasp_poses[obj_name][part] = {}
+                n_pose_list = self.pose_reader.obj_list[obj][part][0]
+                if len(n_pose_list) > 1:
+                    num_grasps = n_pose_list[0]
+                    num_helpers = n_pose_list[1]
+                else:
+                    num_grasps = n_pose_list[0]
+                    num_helpers = 0
+                self.num_grasp_poses[obj_name][part]['grasp_poses'] = num_grasps
+                self.num_grasp_poses[obj_name][part]['helper_poses'] = num_helpers
         
         # fixed offsets related to grasping
         self.hold_offset = 0.03  # make sure the gripper covers the object with some distance and object won't slip out
         self.grasp_offset = 0.05 + self.hold_offset
         self.lift_offset = 0.05 # 0.01 is even hard for some cases
-        self.x_range = {'1': [-0.2, 0.2], '2': [-0.2, 0.2], '4': [-0.5, 0.5], '5': [-0.2, 0.2], '7': [-0.2, 0.2], '8': [-0.5, 0.5], '9': [-0.5, 0.5]}
-        self.y_range = {'1': [-0.2, 0.2], '2': [-0.1, 0.1], '4': [-0.3, 0.3], '5': [-0.2, 0.2], '7': [-0.1, 0.1], '8': [-0.3, 0.3], '9': [-0.2, 0.2]}
+        self.x_range = {
+            'chair_agne_0007': [-0.2, 0.2],
+            'chair_bernard_0146': [-0.2, 0.2],
+            'desk_mikael_1064': [-0.5, 0.5],
+            'shelf_ivar_0678': [-0.2, 0.2],
+            'swivel_chair_0700': [-0.2, 0.2],
+            'table_klubbo_0743': [-0.5, 0.5],
+            'table_lack_0825': [-0.5, 0.5]
+        }
+        self.y_range = {
+            'chair_agne_0007': [-0.2, 0.2],
+            'chair_bernard_0146': [-0.1, 0.1],
+            'desk_mikael_1064': [-0.3, 0.3],
+            'shelf_ivar_0678': [-0.2, 0.2],
+            'swivel_chair_0700': [-0.1, 0.1],
+            'table_klubbo_0743': [-0.3, 0.3],
+            'table_lack_0825': [-0.2, 0.2]
+        }
         self.n_iter_random_objects = 1000
     """
     Use existing 2D random position with standing random z rotation as pose initialization,
     TODO: add lying down pose, make table, desk top plane upside-down, close to center, chair_agne_seat upside-down
     """
     def random_place_objects(self):
-        self.mujoco_model.initializer.x_range = self.x_range[str(self._furniture_id)]
-        self.mujoco_model.initializer.y_range = self.y_range[str(self._furniture_id)]
-        part_x_range = self.x_range[str(self._furniture_id)]
-        part_y_range = self.y_range[str(self._furniture_id)]
+        self.mujoco_model.initializer.x_range = self.x_range[self._furniture_name]
+        self.mujoco_model.initializer.y_range = self.y_range[self._furniture_name]
+        part_x_range = self.x_range[self._furniture_name]
+        part_y_range = self.y_range[self._furniture_name]
         collision = True  # repeat random generation till parts are not in collision at first
         i_random = 0
         while collision and i_random < self.n_iter_random_objects:
@@ -121,7 +163,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         self.gripper_grabs = [-1, -1]
         self.reset(config.furniture_id, config.background)
         # reset swivel base
-        if config.furniture_id == 7: # swivel chair
+        if config.furniture_name == 'swivel_chair_0700': # swivel chair
             print("reseting swivel chair base pose")
             self._set_qpos('1_chair_base',
                 [0, 0.1, 0.0144],
@@ -132,10 +174,10 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 [1.0, 0.0, 0.0, 0.0]
             )
             self._set_qpos('3_chair_seat',
-                           [0.23653631, -0.08022969, 0.14596923],
-                           [1.0, 0.0, 0.0, 0.0]
+               [0.23653631, -0.08022969, 0.14596923],
+               [1.0, 0.0, 0.0, 0.0]
             )
-        
+
         raw_name = env.models.furniture_names[self._furniture_id]
         self.object = raw_name[:raw_name.rfind('_')]
         self._actions = pyperplan.plan_sequence(self.object)
@@ -157,7 +199,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         if config.render:
             self.render()
         
-        if config.furniture_id == 7: # swivel_chair:
+        if config.furniture_name == 'swivel_chair_0700': # swivel_chair:
             self._actions = [
                 ['side', 'left'],    # move arm to the side to clear the place
                 ['grasp', 'right', '2_chair_column'],
@@ -179,6 +221,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             self.action_times = 0
             self.tried_pose = []
             while self.action_times <5 :
+                print("trying action ", action)
                 success = self.single_action(config, action, self.action_times)
                 if success or self.action_times >= 5:
                     break
@@ -208,49 +251,64 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             left_distance = np.linalg.norm(np.array(part_pose_mat)[:3, 3]-left_hand_pose_mat[:3, 3], axis=-1)
             right_distance = np.linalg.norm(np.array(part_pose_mat)[:3, 3]-right_hand_pose_mat[:3, 3], axis=-1)
             action[1] = 'left' if left_distance < right_distance else 'right'
-            local_grasp_pose_mat = [T.pose2mat((pose[:3], pose[3:])) for pose in local_grasp_pose[:2]]
+            num_grasps = self.num_grasp_poses[self.object][part]['grasp_poses']
+            local_grasp_pose_mat = [T.pose2mat((pose[:3], pose[3:])) for pose in local_grasp_pose[:num_grasps]]
             ws_grasp_pose_mat = [T.pose_in_A_to_pose_in_B(grasp_pose_mat0, part_pose_mat) for grasp_pose_mat0 in local_grasp_pose_mat]
             found_downwards_grasppose = False
 
-            for obj_grasp_mat in ws_grasp_pose_mat:
-                # if obj_grasp_mat[2, 3] < 0:  # drop poses that are too low
-                #     continue
-                if obj_grasp_mat[2, 2] < -0.8:  # select grasp poses that has z axis pointing downwards
-                    if len(self.tried_pose) != 0:
-                        for t_p in self.tried_pose:
-                            if np.linalg.norm(obj_grasp_mat[:3, 3] - t_p[:3, 3]) < 1e-1:
-                                continue
-                    found_downwards_grasppose = True
+            dists_poses = self.compute_grasp_pose_distances(ws_grasp_pose_mat, action[1])
+            print("poses and grasps: ")
+            for i in range(len(dists_poses)):
+                print("pose %d, distance %f" % (i, dists_poses[i][0]))
+
+            # TODO TODO TODO
+            for dist, obj_pose in dists_poses:
+                if obj_pose not in self.tried_pose: # TODO TODO TODO this is a bug Emily still needs to fix
+                    print("trying grasp pose closest to %s arm, distance: %f" % (action[1], dist))
+                    obj_grasp_mat = obj_pose
                     break
+
+            # TODO TODO TODO uncomment later; Xiaotong's original grasp selection
+            # for obj_grasp_mat in ws_grasp_pose_mat:
+            #     # if obj_grasp_mat[2, 3] < 0:  # drop poses that are too low
+            #     #     continue
+            #     if obj_grasp_mat[2, 2] < -0.8:  # select grasp poses that has z axis pointing downwards
+            #         if len(self.tried_pose) != 0:
+            #             for t_p in self.tried_pose:
+            #                 if np.linalg.norm(obj_grasp_mat[:3, 3] - t_p[:3, 3]) < 1e-1:
+            #                     continue
+            #         found_downwards_grasppose = True
+            #         break
             self.hold_offset = 0.03
-            if not found_downwards_grasppose:
-                # using helper pose
-                if config.furniture_id == 7:
-                    local_helper_pose = local_grasp_pose[2:]
-                    local_helper_pos = []
-                    for h in local_helper_pose:
-                        local_helper_pos.append(T.pose_in_A_to_pose_in_B(T.pose2mat((h[:3], h[3:])), part_pose_mat)[:3, 3])
-                    helper_x_axis = part_pose_mat[:3, 2]
-                    if np.abs(np.dot(helper_x_axis,[0, 0, -1]))<0.8:
-                        helper_y_axis = np.cross([0, 0, -1], helper_x_axis)
-                        helper_z_axis = np.cross(helper_x_axis, helper_y_axis)
-                        if helper_z_axis[2] > 0:
-                            helper_y_axis = -1*helper_y_axis
-                            helper_z_axis = -1*helper_z_axis
-                        hand_pose_mat = left_hand_pose_mat if action[1] == 'left' else right_hand_pose_mat
-                        distance = np.linalg.norm(np.array(local_helper_pos)-hand_pose_mat[:3, 3], axis=-1)
-                        helper_pos = np.array(local_helper_pos[np.argmin(distance)][:3])
-                        final_helper_pose_mat = np.zeros((4, 4))
-                        final_helper_pose_mat[3, 3] = 1
-                        final_helper_pose_mat[:3, 3] = helper_pos
-                        final_helper_pose_mat[:3, 0] = helper_x_axis
-                        final_helper_pose_mat[:3, 1] = helper_y_axis
-                        final_helper_pose_mat[:3, 2] = helper_z_axis
-                        obj_grasp_mat = final_helper_pose_mat
-                        self.hold_offset = 0.01
-                        found_downwards_grasppose = True
-            if not found_downwards_grasppose:
-                print('cannot find downwards grasppose')
+            # TODO TODO TODO uncomment later; Xiaotong's code for using helper poses
+            # if not found_downwards_grasppose:
+            #     # using helper pose
+            #     if config.furniture_name == 'swivel_chair_0700': # swivel chair
+            #         local_helper_pose = local_grasp_pose[num_grasps:]
+            #         local_helper_pos = []
+            #         for h in local_helper_pose:
+            #             local_helper_pos.append(T.pose_in_A_to_pose_in_B(T.pose2mat((h[:3], h[3:])), part_pose_mat)[:3, 3])
+            #         helper_x_axis = part_pose_mat[:3, 2]
+            #         if np.abs(np.dot(helper_x_axis,[0, 0, -1]))<0.8:
+            #             helper_y_axis = np.cross([0, 0, -1], helper_x_axis)
+            #             helper_z_axis = np.cross(helper_x_axis, helper_y_axis)
+            #             if helper_z_axis[2] > 0:
+            #                 helper_y_axis = -1*helper_y_axis
+            #                 helper_z_axis = -1*helper_z_axis
+            #             hand_pose_mat = left_hand_pose_mat if action[1] == 'left' else right_hand_pose_mat
+            #             distance = np.linalg.norm(np.array(local_helper_pos)-hand_pose_mat[:3, 3], axis=-1)
+            #             helper_pos = np.array(local_helper_pos[np.argmin(distance)][:3])
+            #             final_helper_pose_mat = np.zeros((4, 4))
+            #             final_helper_pose_mat[3, 3] = 1
+            #             final_helper_pose_mat[:3, 3] = helper_pos
+            #             final_helper_pose_mat[:3, 0] = helper_x_axis
+            #             final_helper_pose_mat[:3, 1] = helper_y_axis
+            #             final_helper_pose_mat[:3, 2] = helper_z_axis
+            #             obj_grasp_mat = final_helper_pose_mat
+            #             self.hold_offset = 0.01
+            #             found_downwards_grasppose = True
+            # if not found_downwards_grasppose:
+            #     print('cannot find downwards grasppose')
             self.tried_pose.append(obj_grasp_mat)
             # 2. plus offset to gripper_base which is end effector in controller, add other offsets for pre- and post- grasp pose
             obj2eef_mat = self.left_obj2eef_mat if action[1] == 'left' else self.right_obj2eef_mat
@@ -345,6 +403,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                         verbose=False, potential_threshold = potential
                     )
                 self._controller.set_goal(control_arm, goal_pos, goal_quat)
+                self._controller.set_arm_speed(8)
                 run = "controller"
             elif action[0] == "Baxter3DPositionController":
                 control_arm, goal_pos, goal_quat = action[1]
@@ -394,7 +453,6 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     raise NameError
                 run = "gripper"
             elif action[0] == "connect":
-                # TODO TODO TODO IMPLEMENT
                 run = "connect"
             else:
                 print("FurnitureBaxterAssemblyEnv: unrecognized action %s" % action[0])
@@ -417,6 +475,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                         r_finger_tip = self.pose_in_base_from_name('l_gripper_r_finger_tip') if control_arm == "left" else self.pose_in_base_from_name('r_gripper_r_finger_tip')
                         if np.linalg.norm(l_finger_tip[:3, 3] - r_finger_tip[:3, 3])<2e-2:
                             success = False
+                            print("********** no success because of finger tips **********")
                             self.action_times -= 1
                             break
                     # render
@@ -424,6 +483,11 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     potentials[num_moving%20] = self._controller.potential()
                     if np.std(potentials) <= 1e-7 or np.all(np.diff(potentials) > 0):
                         success = False
+                        print("********** no success because of potentials **********")
+                        if np.std(potentials) <= 1e-7:
+                            print("no movement")
+                        else:
+                            print("potentials increasing")
                         break
                     num_moving += 1
             elif run == "gripper":
@@ -441,7 +505,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 # set flag so unity will update
                 self._unity_updated = False
                 # perform connection
-                self.perform_connection() # TODO TODO TODO IMPLEMENT
+                self.perform_connection()
                 # render
                 self.vr.add(self.render('rgb_array'))
 
@@ -514,6 +578,48 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     if result:
                         return
                     break
+
+    """
+    Computes the distances between current end-effector pose and possible part grasp poses
+
+    @param grasp_pose_mats, a list of part grasp poses in base frame
+    @param control_arm, the arm being controlled for this action
+    @return a list of (dist, pose) tuples, sorted by distance
+    """
+    def compute_grasp_pose_distances(self, grasp_pose_mats, control_arm):
+        # initialize list of (dist, pose) tuples
+        dists_poses = []
+
+        # get current pose of end-effector on given control arm
+        if control_arm == "left":
+            ee_pose_mat = self.pose_in_base_from_name('left_gripper_base')
+        else: # control_arm == "right"
+            ee_pose_mat = self.pose_in_base_from_name('right_gripper_base')
+        
+        # get end-effector position and quaternion
+        ee_pos, ee_quat = T.mat2pose(ee_pose_mat)
+
+        # compute distance to each grasp pose
+        for grasp_pose in grasp_pose_mats:
+            # get object position and quaternion
+            obj_pos, obj_quat = T.mat2pose(grasp_pose)
+
+            # compute difference between current and goal pose
+            dist_pos = np.linalg.norm(ee_pos - obj_pos)
+            dist_quat = Quaternion.distance(Quaternion(ee_quat), Quaternion(obj_quat))
+            dist_quat = min(dist_quat, math.pi - dist_quat)
+            dist = dist_pos + dist_quat
+            print("total distance: %f, position distance: %f, rotation distance: %f"
+                % (dist, dist_pos, dist_quat)
+            )
+
+            # add distance and pose to list of tuples
+            dists_poses.append((dist, grasp_pose))
+
+        # sort grasp poses by shortest distance
+        dists_poses.sort()
+
+        return dists_poses
 
 """
 Main function; will not be called when environment is constructed from appropriate demo

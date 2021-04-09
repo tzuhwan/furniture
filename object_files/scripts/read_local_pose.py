@@ -82,7 +82,7 @@ class PoseReader(object):
             },
             '7_swivel_chair': {
                 '1_chair_base': [[10], ['base_grasp_pose']], # n_grasp_pose
-                '2_chair_column': [[2, 2], ['column_grasp_pose', 'column_helper_pose']], # for objects with helper_poses, [n_grasp_pose, n_helper_pose]
+                '2_chair_column': [[12, 2], ['column_grasp_pose', 'column_helper_pose']], # for objects with helper_poses, [n_grasp_pose, n_helper_pose]
                 '3_chair_seat': [[14], ['seat_grasp_pose']]
             },
             '8_table_klubbo': {
@@ -98,8 +98,8 @@ class PoseReader(object):
                 '3_table_leg3': [[2, 4], ['table_lack_leg_grasp_pose', 'table_lack_leg_helper_pose'], 'table_leg'],
                 '4_table_leg4': [[2, 4], ['table_lack_leg_grasp_pose', 'table_lack_leg_helper_pose'], 'table_leg'],
                 '5_table_top': [[6], 'table_lack_top_grasp_pose']
+            }
         }
-}
     
     def connect(self):
         self.sim_client = sim.simxStart('127.0.0.1', 19997, True, True, -5000, 5)  # Connect to V-REP on port 19997

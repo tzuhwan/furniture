@@ -108,6 +108,8 @@ def main(args):
 	args.furniture_id = furniture_id
 	args.furniture_name = furniture_name
 	args.background = background_name
+	args.live_connect_coppeliasim = False
+	args.grasp_pose_json_file = 'default_furniture_grasp_poses.json'
 
 	print()
 	print("Creating assembly environment (robot: {}, furniture: {}, background: {})".format(
