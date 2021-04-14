@@ -4,6 +4,7 @@ Defines causality of controllers in control basis.
 
 from itertools import permutations
 import numpy as np
+from pathlib import Path
 
 from env.controllers import Baxter6DPoseController
 from env.controllers import BaxterObject6DPoseController
@@ -40,6 +41,15 @@ class ControlBasis:
 
 		self.num_iters = 0
 
+		self.composable_causality = {}
+
+		self.file_path = str(Path(__file__).absolute())
+		self.file_path = self.file_path[:self.file_path.rfind('/')+1]
+
+	###############
+	### GETTERS ###
+	###############
+
 	def get_controllers(self):
 		return self.control_basis_controllers
 
@@ -48,6 +58,10 @@ class ControlBasis:
 
 	def get_temporal_decomposition(self):
 		return self.temporal_decomposition
+
+	#################################
+	### CONTROLLER INITIALIZATION ###
+	#################################
 
 	"""
 	Initializes controllers given list of controllers involved in action.
@@ -91,7 +105,7 @@ class ControlBasis:
 				)
 				self.controllers[controller].set_arm_speed(5)
 			else:
-				print("FurnitureBaxterControllerPlannerEnv: controller type %s not recognized" % controller)
+				print("ControlBasis: controller type %s not recognized" % controller)
 				raise NameError
 
 		self.initialize_potential_dicts()
@@ -170,7 +184,7 @@ class ControlBasis:
 				self.controllers[controller[0]].set_goal(control_arm, rotation)
 				self.controllers[controller[0]].set_arm_speed(arm_speed)
 			else:
-				print("FurnitureBaxterControllerPlannerEnv: controller type %s not recognized" % controller[0])
+				print("ControlBasis: controller type %s not recognized" % controller[0])
 				raise NameError
 
 		self.initialize_potential_dicts()
@@ -190,17 +204,9 @@ class ControlBasis:
 
 		return
 
-	"""
-	Sets all of the controllers to suppress output the same way.
-
-	@param suppress_output, the boolean indicating whether all controllers should suppress output or not
-	@post all controllers suppress output according to given boolean
-	"""
-	def set_controllers_suppress_output(self, suppress_output=False):
-		for c in self.controllers.keys():
-			self.controllers[c].suppress_output = suppress_output
-
-		return
+	####################
+	### COMPOSITIONS ###
+	####################
 
 	"""
 	Generates all possible compositions of controllers by permuting the given list of controllers.
@@ -208,6 +214,10 @@ class ControlBasis:
 	def get_possible_controller_compositions(self, controllers):
 		possible_compositions = list(permutations(controllers))
 		return possible_compositions
+
+	##########################
+	### CONTROLLER UPDATES ###
+	##########################
 
 	"""
 	Computes the potentials of each controller in the composition.
@@ -270,6 +280,76 @@ class ControlBasis:
 
 		return dq_combined, np.all(objective_met)
 
+	############################
+	### COMPOSABLE CAUSALITY ###
+	############################
+
+	"""
+	Updates the composable causality dictionary based on new samples
+
+	@param action_name, the name of the action whose composition causality is being predicted
+	@param compositions_probabilities_iterations, a list of (composition, probability, iteration) triples
+	@param num_samples, the number of samples used to compute the probability and average iterations
+	@return none
+	@post composable causality dictionary updated with given samples
+	"""
+	def update_composable_causality(self, action_name, compositions_probabilities_iterations, num_samples):
+		# loop through compositions
+		for c, p, i in compositions_probabilities_iterations:
+			# get composition string
+			c_str = self.multiobjective_controller_string(c)
+			# get current probability, iterations, and samples
+			curr_p = self.composable_causality[action_name][c_str]['probability']
+			curr_i = self.composable_causality[action_name][c_str]['iterations']
+			curr_s = self.composable_causality[action_name][c_str]['samples']
+			# update average probability, average iterations, and samples for composition in dictionary
+			self.composable_causality[action_name][c_str]['probability'] = ((curr_p * curr_s) + (p * num_samples)) / (curr_s + num_samples)
+			self.composable_causality[action_name][c_str]['iterations'] = ((curr_i * curr_s) + (i * num_samples)) / (curr_s + num_samples)
+			self.composable_causality[action_name][c_str]['samples'] = curr_s + num_samples
+
+		return
+
+	"""
+	Initializes the composable causality dictionary based on samples
+
+	@param action_name, the name of the action whose composition causality is being predicted
+	@param compositions_probabilities_iterations, a list of (composition, probability, iteration) triples
+	@param num_samples, the number of samples used to compute the probability and average iterations
+	@return none
+	@post composable causality dictionary initialized with given samples
+	"""
+	def initialize_composable_causality(self, action_name, compositions_probabilities_iterations, num_samples):
+		# initialize composable causality dictionary
+		self.composable_causality[action_name] = {}
+
+		# loop through compositions
+		for c, p, i in compositions_probabilities_iterations:
+			# get composition string
+			c_str = self.multiobjective_controller_string(c)
+			# store probability, iterations, and samples for composition in dictionary
+			self.composable_causality[action_name][c_str] = {}
+			self.composable_causality[action_name][c_str]['probability'] = p
+			self.composable_causality[action_name][c_str]['iterations'] = i
+			self.composable_causality[action_name][c_str]['samples'] = num_samples
+
+		return
+
+	###################################
+	### CONTROLLER HELPER FUNCTIONS ###
+	###################################
+
+	"""
+	Sets all of the controllers to suppress output the same way.
+
+	@param suppress_output, the boolean indicating whether all controllers should suppress output or not
+	@post all controllers suppress output according to given boolean
+	"""
+	def set_controllers_suppress_output(self, suppress_output=False):
+		for c in self.controllers.keys():
+			self.controllers[c].suppress_output = suppress_output
+
+		return
+
 	"""
 	Creates a string representing the name of a multi-objective controller.
 
@@ -294,3 +374,122 @@ class ControlBasis:
 				action += " <| "
 
 		return action
+
+	#############################
+	### FILE INPUT AND OUTPUT ###
+	#############################
+
+	"""
+	Writes summary information from walkout samples to file
+
+	@param action_name, the name of the action whose composition causality is being predicted
+	@param compositions_probabilities_iterations, a list of (composition, probability, iteration) triples
+	@param num_samples, the number of samples used to compute the probability and average iterations
+	@param update, a Boolean indicating whether the information in the file should be updated or overwriten
+	@param save_previous_info, a Boolean indicating whether to save the existing information in the file, which may not be related to the current action
+		   NOTE: used when update is false, but another action in the file should be saved
+	@param file_name, the name of the file to write to
+	@return none
+	@post summary information writen to file
+	"""
+	def write_walkout_samples_to_file(self, action_name, compositions_probabilities_iterations, num_samples, update=True, save_previous_info=True, file_name="composition_predictions.txt"):
+		# check if information is being updated
+		if update:
+			# read current information from file
+			self.read_walkout_samples_from_file(file_name)
+			# update composable causality dictionary with new information
+			self.update_composable_causality(action_name, compositions_probabilities_iterations, num_samples)
+		else:
+			# check if other info in file should be saved
+			if save_previous_info:
+				self.read_walkout_samples_from_file(file_name)
+			# initialize composable causality dictionary with new information
+			self.initialize_composable_causality(action_name, compositions_probabilities_iterations, num_samples)
+
+		# open file for writing (overwrites anything in file)
+		f = open(self.file_path + file_name, 'w')
+
+		# write everything in composable causality dictionary to file
+		for a in self.composable_causality.keys():
+			f.write("action: %s\n" % a)
+			for c in self.composable_causality[a].keys():
+				f.write("\tcomposition: %s\n" % c)
+				f.write("\t\tprobability: %f\n" % self.composable_causality[a][c]['probability'])
+				f.write("\t\titerations: %f\n" % self.composable_causality[a][c]['iterations'])
+				f.write("\t\tsamples: %d\n" % self.composable_causality[a][c]['samples'])
+			f.write("\n")
+
+		# close file
+		f.close()
+
+		return
+
+	def read_walkout_samples_from_file(self, file_name):
+		# open file for reading
+		f = open(self.file_path + file_name, 'r')
+		# read information from file
+		lines = f.readlines()
+		# close file
+		f.close()
+
+		# initialize line counter and continue flag
+		i = 0
+		process_text = True
+
+		# process each action in file
+		while process_text:
+			process_text, i = self.read_action_samples_from_file(lines, i)
+
+		return
+
+	"""
+	Reads information for a single action from file
+
+	@param lines, the list of lines read from the file
+	@param idx, the index of the lines list at which to start processing
+	@return boolean indicating if there is more text to process in file
+	@return index of the lines list to continue processing from
+	@post dictionary of compositions and sampling statistics initialized
+	"""
+	def read_action_samples_from_file(self, lines, idx):
+		# initialize line counter
+		i = idx
+
+		# get action name and increment line counter
+		action_name = lines[i].split()[1]
+		i += 1
+
+		# get composition prosibilities
+		num_compositions = len(self.get_possible_controller_compositions(self.temporal_decomposition[action_name]))
+
+		# initialize composable causality dictionary
+		self.composable_causality[action_name] = {}
+
+		# loop through composition possibilities
+		for j in range(num_compositions):
+			# get composition string and increment line counter
+			composition = lines[i][lines[i].find(' ')+1:-1]
+			i += 1
+			# get probability and increment line counter
+			probability = lines[i].split()[1]
+			i += 1
+			# get iterations and increment line counter
+			iterations = lines[i].split()[1]
+			i += 1
+			# get samples and increment line counter
+			samples = lines[i].split()[1]
+			i += 1
+			# store probability, iterations, and samples for composition in dictionary
+			self.composable_causality[action_name][composition] = {}
+			self.composable_causality[action_name][composition]['probability'] = float(probability)
+			self.composable_causality[action_name][composition]['iterations'] = float(iterations)
+			self.composable_causality[action_name][composition]['samples'] = int(samples)
+
+		# check if end of file reached
+		if i >= len(lines)-2: # account for an extra empty line or two
+			return False, -1 # end of file reached
+		# check if next line is just whitespace
+		elif not lines[i].split():
+			return True, i+1 # next line contains more information
+		else:
+			return True, i # current line contains information about next action

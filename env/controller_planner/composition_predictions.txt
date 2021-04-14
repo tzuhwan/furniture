@@ -1,0 +1,36 @@
+action: insert-into
+	composition: BaxterRotationController <| Baxter3DPositionController
+		probability: 0.708597
+		iterations: 213.315000
+		samples: 200
+	composition: Baxter3DPositionController <| BaxterRotationController
+		probability: 0.727675
+		iterations: 219.720000
+		samples: 200
+
+action: screw-into
+	composition: BaxterScrewController <| BaxterRotationController <| Baxter3DPositionController
+		probability: 0.932458
+		iterations: 224.715000
+		samples: 200
+	composition: BaxterRotationController <| BaxterScrewController <| Baxter3DPositionController
+		probability: 0.943502
+		iterations: 217.715000
+		samples: 200
+	composition: BaxterScrewController <| Baxter3DPositionController <| BaxterRotationController
+		probability: 0.921540
+		iterations: 238.075000
+		samples: 200
+	composition: Baxter3DPositionController <| BaxterScrewController <| BaxterRotationController
+		probability: 0.929726
+		iterations: 235.735000
+		samples: 200
+	composition: BaxterRotationController <| Baxter3DPositionController <| BaxterScrewController
+		probability: 0.912913
+		iterations: 228.270000
+		samples: 200
+	composition: Baxter3DPositionController <| BaxterRotationController <| BaxterScrewController
+		probability: 0.907926
+		iterations: 223.205000
+		samples: 200
+
