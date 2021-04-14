@@ -1,6 +1,7 @@
 from .controller import Controller
 from .baxter_ik_controller import BaxterIKController
 from .sawyer_ik_controller import SawyerIKController
+from .baxter_assembly_controller import BaxterAssemblyController
 from .baxter_6Dpose_controller import Baxter6DPoseController
 from .baxter_object_6Dpose_controller import BaxterObject6DPoseController
 from .baxter_3Dposition_controller import Baxter3DPositionController

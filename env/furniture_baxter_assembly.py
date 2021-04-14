@@ -128,7 +128,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 self._controller = Baxter6DPoseController(
                     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
                     robot_jpos_getter=self._robot_jpos_getter,
-                    verbose=False
+                    verbose=config.verbose
                 )
                 self._controller.set_goal(control_arm, goal_pos, goal_quat)
                 self._controller.set_arm_speed(arm_speed)
@@ -139,7 +139,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
                     robot_jpos_getter=self._robot_jpos_getter,
                     objects_in_scene=self._object_names,
-                    verbose=False
+                    verbose=config.verbose
                 )
                 self._controller.set_goal(control_arm, object_name, object_goal_pos, object_goal_quat)
                 run = "object-controller"
@@ -148,7 +148,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 self._controller = Baxter3DPositionController(
                     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
                     robot_jpos_getter=self._robot_jpos_getter,
-                    verbose=False
+                    verbose=config.verbose
                 )
                 self._controller.set_goal(control_arm, goal_pos)
                 run = "controller"
@@ -157,7 +157,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 self._controller = BaxterRotationController(
                     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
                     robot_jpos_getter=self._robot_jpos_getter,
-                    verbose=False
+                    verbose=config.verbose
                 )
                 self._controller.set_goal(control_arm, goal_quat)
                 run="controller"
@@ -166,7 +166,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 self._controller = BaxterAlignmentController(
                     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
                     robot_jpos_getter=self._robot_jpos_getter,
-                    verbose=False
+                    verbose=config.verbose
                 )
                 self._controller.set_goal(control_arm, ee_axis, align_pos)
                 run = "controller"
@@ -175,7 +175,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 self._controller = BaxterScrewController(
                     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
                     robot_jpos_getter=self._robot_jpos_getter,
-                    verbose=False
+                    verbose=config.verbose
                 )
                 self._controller.set_goal(control_arm, rotation)
                 run = "controller"
