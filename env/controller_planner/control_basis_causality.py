@@ -22,7 +22,7 @@ class ControlBasis:
 			"BaxterRotationController",
 			"BaxterAlignmentController",
 			"BaxterScrewController",
-			"BaxterObject6DPoseController"
+			# "BaxterObject6DPoseController"
 		]
 
 		self.causal_models = {
@@ -31,7 +31,7 @@ class ControlBasis:
 			"BaxterRotationController": 0.90,
 			"BaxterAlignmentController": 0.85,
 			"BaxterScrewController": 0.97,
-			"BaxterObject6DPoseController": 0.80
+			# "BaxterObject6DPoseController": 0.80
 		}
 
 		self.temporal_decomposition = {
@@ -66,42 +66,42 @@ class ControlBasis:
 	"""
 	Initializes controllers given list of controllers involved in action.
 	"""
-	def initialize_controllers(self, action_controllers, bullet_data_path, robot_jpos_getter, suppress_output=False):
+	def initialize_controllers(self, action_controllers, bullet_data_path, robot_jpos_getter, verbose=True, debug=False, suppress_output=False):
 		self.controllers = {}
 		for controller in action_controllers:
 			if controller == "Baxter6DPoseController":
 				self.controllers[controller] = Baxter6DPoseController(
 					bullet_data_path=bullet_data_path,
 					robot_jpos_getter=robot_jpos_getter,
-					verbose=False, suppress_output=suppress_output
+					verbose=verbose, debug=debug, suppress_output=suppress_output
 				)
 				self.controllers[controller].set_arm_speed(5)
 			elif controller == "Baxter3DPositionController":
 				self.controllers[controller] = Baxter3DPositionController(
 					bullet_data_path=bullet_data_path,
 					robot_jpos_getter=robot_jpos_getter,
-					verbose=False, suppress_output=suppress_output
+					verbose=verbose, debug=debug, suppress_output=suppress_output
 				)
 				self.controllers[controller].set_arm_speed(5)
 			elif controller == "BaxterRotationController":
 				self.controllers[controller] = self._controller = BaxterRotationController(
 					bullet_data_path=bullet_data_path,
 					robot_jpos_getter=robot_jpos_getter,
-					verbose=False, suppress_output=suppress_output
+					verbose=verbose, debug=debug, suppress_output=suppress_output
 				)
 				self.controllers[controller].set_arm_speed(5)
 			elif controller == "BaxterAlignmentController":
 				self.controllers[controller] = BaxterAlignmentController(
 					bullet_data_path=bullet_data_path,
 					robot_jpos_getter=robot_jpos_getter,
-					verbose=False, suppress_output=suppress_output
+					verbose=verbose, debug=debug, suppress_output=suppress_output
 				)
 				self.controllers[controller].set_arm_speed(5)
 			elif controller == "BaxterScrewController":
 				self.controllers[controller] = BaxterScrewController(
 					bullet_data_path=bullet_data_path,
 					robot_jpos_getter=robot_jpos_getter,
-					verbose=False, suppress_output=suppress_output
+					verbose=verbose, debug=debug, suppress_output=suppress_output
 				)
 				self.controllers[controller].set_arm_speed(5)
 			else:
@@ -115,7 +115,7 @@ class ControlBasis:
 	"""
 	Initializes controllers given list of (controller, goal) tuples involved in action.
 	"""
-	def initialize_controllers_and_goals(self, action_controllers, bullet_data_path, robot_jpos_getter, suppress_output=False):
+	def initialize_controllers_and_goals(self, action_controllers, bullet_data_path, robot_jpos_getter, verbose=True, debug=False, suppress_output=False):
 		self.controllers = {}
 		for controller in action_controllers:
 			if controller[0] == "Baxter6DPoseController":
@@ -127,7 +127,7 @@ class ControlBasis:
 				self.controllers[controller[0]] = Baxter6DPoseController(
 					bullet_data_path=bullet_data_path,
 					robot_jpos_getter=robot_jpos_getter,
-					verbose=False, suppress_output=suppress_output
+					verbose=verbose, debug=debug, suppress_output=suppress_output
 				)
 				self.controllers[controller[0]].set_goal(control_arm, goal_pos, goal_quat)
 				self.controllers[controller[0]].set_arm_speed(arm_speed)
@@ -140,7 +140,7 @@ class ControlBasis:
 				self.controllers[controller[0]] = Baxter3DPositionController(
 					bullet_data_path=bullet_data_path,
 					robot_jpos_getter=robot_jpos_getter,
-					verbose=False, suppress_output=suppress_output
+					verbose=verbose, debug=debug, suppress_output=suppress_output
 				)
 				self.controllers[controller[0]].set_goal(control_arm, goal_pos)
 				self.controllers[controller[0]].set_arm_speed(arm_speed)
@@ -153,7 +153,7 @@ class ControlBasis:
 				self.controllers[controller[0]] = self._controller = BaxterRotationController(
 					bullet_data_path=bullet_data_path,
 					robot_jpos_getter=robot_jpos_getter,
-					verbose=False, suppress_output=suppress_output
+					verbose=verbose, debug=debug, suppress_output=suppress_output
 				)
 				self.controllers[controller[0]].set_goal(control_arm, goal_quat)
 				self.controllers[controller[0]].set_arm_speed(arm_speed)
@@ -166,7 +166,7 @@ class ControlBasis:
 				self.controllers[controller[0]] = BaxterAlignmentController(
 					bullet_data_path=bullet_data_path,
 					robot_jpos_getter=robot_jpos_getter,
-					verbose=False, suppress_output=suppress_output
+					verbose=verbose, debug=debug, suppress_output=suppress_output
 				)
 				self.controllers[controller[0]].set_goal(control_arm, ee_axis, align_pos)
 				self.controllers[controller[0]].set_arm_speed(arm_speed)
@@ -179,7 +179,7 @@ class ControlBasis:
 				self.controllers[controller[0]] = BaxterScrewController(
 					bullet_data_path=bullet_data_path,
 					robot_jpos_getter=robot_jpos_getter,
-					verbose=False, suppress_output=suppress_output
+					verbose=verbose, debug=debug, suppress_output=suppress_output
 				)
 				self.controllers[controller[0]].set_goal(control_arm, rotation)
 				self.controllers[controller[0]].set_arm_speed(arm_speed)
@@ -218,6 +218,23 @@ class ControlBasis:
 	##########################
 	### CONTROLLER UPDATES ###
 	##########################
+
+	"""
+	Compute the single-objective controller update.
+
+	@param controller_name, the name of the controller being run
+		   Note: used for indexing into control basis controller dictionary
+	"""
+	def compute_singleobjective_controller_update(self, controller_name):
+		# check for valid controller name
+		if (controller_name is None) or (controller_name not in self.control_basis_controllers):
+			print("ControlBasis: unrecognized controller name %s")
+			raise NameError
+
+		# compute control command
+		velocities = self.controllers[controller_name].get_control()
+
+		return velocities, self.controllers[controller_name].objective_met
 
 	"""
 	Computes the potentials of each controller in the composition.
@@ -285,7 +302,7 @@ class ControlBasis:
 	############################
 
 	"""
-	Updates the composable causality dictionary based on new samples
+	Updates the composable causality dictionary based on new samples.
 
 	@param action_name, the name of the action whose composition causality is being predicted
 	@param compositions_probabilities_iterations, a list of (composition, probability, iteration) triples
@@ -310,7 +327,7 @@ class ControlBasis:
 		return
 
 	"""
-	Initializes the composable causality dictionary based on samples
+	Initializes the composable causality dictionary based on samples.
 
 	@param action_name, the name of the action whose composition causality is being predicted
 	@param compositions_probabilities_iterations, a list of (composition, probability, iteration) triples
@@ -380,7 +397,7 @@ class ControlBasis:
 	#############################
 
 	"""
-	Writes summary information from walkout samples to file
+	Writes summary information from walkout samples to file.
 
 	@param action_name, the name of the action whose composition causality is being predicted
 	@param compositions_probabilities_iterations, a list of (composition, probability, iteration) triples
@@ -424,6 +441,13 @@ class ControlBasis:
 
 		return
 
+	"""
+	Read summary information from file into composable causality dictionary.
+
+	@param file_name, the name of the file to read from
+	@return none
+	@post dictionary of compositions and sampling statistics initialized
+	"""
 	def read_walkout_samples_from_file(self, file_name):
 		# open file for reading
 		f = open(self.file_path + file_name, 'r')
@@ -443,7 +467,7 @@ class ControlBasis:
 		return
 
 	"""
-	Reads information for a single action from file
+	Reads information for a single action from file.
 
 	@param lines, the list of lines read from the file
 	@param idx, the index of the lines list at which to start processing

@@ -99,6 +99,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             # set up action
             action = self._action_sequence[i]
             run = ""
+            # multi-objective controller
             if isinstance(action[0], tuple):
                 controllers_goals = action
                 self.cb.initialize_controllers_and_goals(controllers_goals,
@@ -107,6 +108,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 )
                 self.composition = [controller_name for controller_name, goal_info in controllers_goals]
                 run = "multiobjective-controller"
+            # perform online walkouts to determine multi-objective controller composition
             elif action[0] == "plan":
                 control_arm, action_name = action[1]
                 controllers_goals = action[2]
@@ -119,20 +121,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 self.composition = compositions[0]
                 print("executing composition %s" % self.cb.multiobjective_controller_string(self.composition))
                 run = "multiobjective-controller"
-            elif action[0] == "Baxter6DPoseController":
-                if len(action[1]) == 3:
-                    control_arm, goal_pos, goal_quat = action[1]
-                    arm_speed = 8
-                else:
-                    control_arm, goal_pos, goal_quat, arm_speed = action[1]
-                self._controller = Baxter6DPoseController(
-                    bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
-                    robot_jpos_getter=self._robot_jpos_getter,
-                    verbose=config.verbose
-                )
-                self._controller.set_goal(control_arm, goal_pos, goal_quat)
-                self._controller.set_arm_speed(arm_speed)
-                run = "controller"
+            # object controller (not working the best)
             elif action[0] == "BaxterObject6DPoseController":
                 control_arm, object_name, object_goal_pos, object_goal_quat = action[1]
                 self._controller = BaxterObject6DPoseController(
@@ -143,42 +132,16 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 )
                 self._controller.set_goal(control_arm, object_name, object_goal_pos, object_goal_quat)
                 run = "object-controller"
-            elif action[0] == "Baxter3DPositionController":
-                control_arm, goal_pos = action[1]
-                self._controller = Baxter3DPositionController(
+            # single-objective controller
+            elif action[0] in self.cb.control_basis_controllers:
+                controller_goals = [action]
+                self.cb.initialize_controllers_and_goals(controller_goals,
                     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
                     robot_jpos_getter=self._robot_jpos_getter,
                     verbose=config.verbose
                 )
-                self._controller.set_goal(control_arm, goal_pos)
-                run = "controller"
-            elif action[0] == "BaxterRotationController":
-                control_arm, goal_quat = action[1]
-                self._controller = BaxterRotationController(
-                    bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
-                    robot_jpos_getter=self._robot_jpos_getter,
-                    verbose=config.verbose
-                )
-                self._controller.set_goal(control_arm, goal_quat)
-                run="controller"
-            elif action[0] == "BaxterAlignmentController":
-                control_arm, ee_axis, align_pos = action[1]
-                self._controller = BaxterAlignmentController(
-                    bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
-                    robot_jpos_getter=self._robot_jpos_getter,
-                    verbose=config.verbose
-                )
-                self._controller.set_goal(control_arm, ee_axis, align_pos)
-                run = "controller"
-            elif action[0] == "BaxterScrewController":
-                control_arm, rotation = action[1]
-                self._controller = BaxterScrewController(
-                    bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
-                    robot_jpos_getter=self._robot_jpos_getter,
-                    verbose=config.verbose
-                )
-                self._controller.set_goal(control_arm, rotation)
-                run = "controller"
+                run = action[0]
+            # close gripper
             elif action[0] == "close-gripper":
                 control_arm = action[1]
                 if control_arm == "left":
@@ -189,6 +152,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     print("FurnitureBaxterAssemblyEnv: unrecognized arm %s" % control_arm)
                     raise NameError
                 run = "gripper"
+            # open gripper
             elif action[0] == "open-gripper":
                 control_arm = action[1]
                 if control_arm == "left":
@@ -199,6 +163,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     print("FurnitureBaxterAssemblyEnv: unrecognized arm %s" % control_arm)
                     raise NameError
                 run = "gripper"
+            # connect
             elif action[0] == "connect":
                 run = "connect"
             else:
@@ -206,21 +171,32 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 raise NameError
 
             # perform action
-            if (run == "controller") or (run == "object-controller"):
+            if run == "object-controller":
                 # run controller
                 while not self._controller.objective_met:
                     # set flag so unity will update
                     self._unity_updated = False
-                    # if object controller, set sim states
-                    if run == "object-controller":
-                        obj = self._controller.get_object_name()
-                        obj_pose_matrix = self.pose_in_base_from_name(obj)
-                        self._controller.set_object_pose(obj, obj_pose_matrix)
-                        self._controller.set_body_poses(self.get_body_pose_matrices())
+                    # set sim states
+                    obj = self._controller.get_object_name()
+                    obj_pose_matrix = self.pose_in_base_from_name(obj)
+                    self._controller.set_object_pose(obj, obj_pose_matrix)
+                    self._controller.set_body_poses(self.get_body_pose_matrices())
                     # compute controller update
                     velocities = self._controller.get_control()
                     # perform controller command
-                    self.perform_command(velocities, self.gripper_grabs, True, (run == "object-controller"))
+                    self.perform_command(velocities, self.gripper_grabs, True, True)
+                    # render
+                    self.vr.add(self.render('rgb_array'))
+            elif run in self.cb.control_basis_controllers:
+                objective_met = False
+                # run controller
+                while not objective_met:
+                    # set flag so unity will update
+                    self._unity_updated = False
+                    # compute controller update
+                    velocities, objective_met = self.cb.compute_singleobjective_controller_update(run)
+                    # perform controller command
+                    self.perform_command(velocities, self.gripper_grabs, True, False, controller_name=run)
                     # render
                     self.vr.add(self.render('rgb_array'))
             elif run == "multiobjective-controller":
@@ -283,8 +259,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         where 1 means gripper is closed and -1 means gripper is open
     @param controller_velocities, a boolean indicating whether to update velocities using a controller
     @param object_controller, a boolean indicating whether the controller being run acts on an object
+    @param controller_name, the name of the single-objective control basis controller being run
     """
-    def perform_command(self, velocities, gripper_grabs, controller_velocities=True, object_controller=False):
+    def perform_command(self, velocities, gripper_grabs, controller_velocities=True, object_controller=False, controller_name=None):
         # set up low action
         low_action = np.concatenate([velocities, gripper_grabs])
 
@@ -300,7 +277,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                             obj_pose_matrix = self.pose_in_base_from_name(obj)
                             self._controller.set_object_pose(obj, obj_pose_matrix)
                             self._controller.set_body_poses(self.get_body_pose_matrices())
-                        velocities = self._controller.get_control()
+                            velocities = self._controller.get_control()
+                        else:
+                            velocities, _ = self.cb.compute_singleobjective_controller_update(controller_name)
                     low_action = np.concatenate([velocities, gripper_grabs])
                     ctrl = self._setup_action(low_action)
 
