@@ -256,14 +256,28 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             ws_grasp_pose_mat = [T.pose_in_A_to_pose_in_B(grasp_pose_mat0, part_pose_mat) for grasp_pose_mat0 in local_grasp_pose_mat]
             found_downwards_grasppose = False
 
-            dists_poses = self.compute_grasp_pose_distances(ws_grasp_pose_mat, action[1])
+            # TODO TODO TODO check computation of pregarsp poses; Emily copied this from down below
+            # initialize list of pregrasp, grasp pose tuples
+            pregrasp_grasp_pose_mats = []
+            # compute pregrasp pose for each possible grasp pose
+            for obj_grasp_mat in ws_grasp_pose_mat:
+                # copied from down below; check this?
+                obj2eef_mat = self.left_obj2eef_mat if action[1] == 'left' else self.right_obj2eef_mat
+                grasp_pose_mat = obj_grasp_mat.dot(obj2eef_mat) # TODO isn't grasp pose already in base frame? what is this transformation doing?
+                grasp_pose_mat[:3, -1] += self.hold_offset * grasp_pose_mat[:3, 2] # TODO does this account for not-downward grasps?  how do we determine what dimension to apply offset to?
+                grasp_pose = T.mat2pose(grasp_pose_mat)
+                pre_eef_grasp_pose_mat = grasp_pose_mat.copy()
+                pre_eef_grasp_pose_mat[:3, -1] -= self.grasp_offset * pre_eef_grasp_pose_mat[:3, 2]
+                pregrasp_grasp_pose_mats.append((obj_grasp_mat, pre_eef_grasp_pose_mat))
+
+            dists_poses = self.compute_pregrasp_pose_distances(pregrasp_grasp_pose_mats, action[1])
             print("poses and grasps: ")
             for i in range(len(dists_poses)):
                 print("pose %d, distance %f" % (i, dists_poses[i][0]))
 
-            # TODO TODO TODO
-            for dist, obj_pose in dists_poses:
-                if obj_pose not in self.tried_pose: # TODO TODO TODO this is a bug Emily still needs to fix
+            # TODO TODO TODO check selection of grasp poses by distance
+            for dist, pregrasp_pose, obj_pose in dists_poses:
+                if obj_pose not in self.tried_pose: # TODO TODO TODO this is a bug, this check will not work
                     print("trying grasp pose closest to %s arm, distance: %f" % (action[1], dist))
                     obj_grasp_mat = obj_pose
                     break
@@ -615,6 +629,49 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
 
             # add distance and pose to list of tuples
             dists_poses.append((dist, grasp_pose))
+
+        # sort grasp poses by shortest distance
+        dists_poses.sort()
+
+        return dists_poses
+
+    """
+    Computes the distances between current end-effector pose and possible part pre-grasp poses
+
+    @param pregrasp_grasp_pose_mats, a list of part (pregrasp, grasp) pose tuples in base frame
+    @param control_arm, the arm being controlled for this action
+    @return a list of (dist, pregrasp pose, grasp pose) tuples, sorted by distance
+    """
+    def compute_pregrasp_pose_distances(self, pregrasp_grasp_pose_mats, control_arm):
+        # initialize list of (dist, pregrasp pose, grasp pose) tuples
+        dists_poses = []
+
+        # get current pose of end-effector on given control arm
+        if control_arm == "left":
+            ee_pose_mat = self.pose_in_base_from_name('left_gripper_base')
+        else: # control_arm == "right"
+            ee_pose_mat = self.pose_in_base_from_name('right_gripper_base')
+        
+        # get end-effector position and quaternion
+        ee_pos, ee_quat = T.mat2pose(ee_pose_mat)
+
+        # compute distance to each grasp pose
+        for pregrasp_pose, grasp_pose in pregrasp_grasp_pose_mats:
+            # get object position and quaternion
+            pregrasp_obj_pos, pregrasp_obj_quat = T.mat2pose(pregrasp_pose)
+            grasp_obj_pos, grasp_obj_quat = T.mat2pose(grasp_pose)
+
+            # compute difference between current and pregrasp pose
+            dist_pos = np.linalg.norm(ee_pos - pregrasp_obj_pos)
+            dist_quat = Quaternion.distance(Quaternion(ee_quat), Quaternion(pregrasp_obj_quat))
+            dist_quat = min(dist_quat, math.pi - dist_quat)
+            dist = dist_pos + dist_quat
+            print("total distance: %f, position distance: %f, rotation distance: %f"
+                % (dist, dist_pos, dist_quat)
+            )
+
+            # add distance and pose to list of tuples
+            dists_poses.append((dist, pregrasp_pose, grasp_pose))
 
         # sort grasp poses by shortest distance
         dists_poses.sort()
