@@ -169,7 +169,7 @@ class FurnitureBaxterControllerPlannerEnv(FurnitureBaxterEnv):
 		self.cb.initialize_controllers(action_controllers,
 			bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
 			robot_jpos_getter=self._robot_jpos_getter,
-			suppress_output=True
+			verbose=False, debug=False, suppress_output=True
 		)
 
 		# get possible compositions
@@ -300,7 +300,7 @@ class FurnitureBaxterControllerPlannerEnv(FurnitureBaxterEnv):
 		self.cb.initialize_controllers(action_controllers,
 			bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
 			robot_jpos_getter=self._robot_jpos_getter,
-			suppress_output=False
+			verbose=False, debug=False, suppress_output=False
 		)
 
 		# get possible compositions
@@ -401,16 +401,19 @@ class FurnitureBaxterControllerPlannerEnv(FurnitureBaxterEnv):
 		for c in self.cb.controllers.keys():
 			random_goal_state = self.random_controller_goal(c, self.cb.controllers[c])
 
-		# compute initial distance from goal
-		init_potential, _ = self.cb.compute_multiobjective_potentials(controllers)
+		# reset controller potentials and counter
+		self.cb.initialize_potential_dicts()
 
-		# compute multi-objective potential and check for controller progress
-		pot, progress = self.cb.compute_multiobjective_potentials(controllers)
+		# compute initial multi-objective potential and check for controller progress
+		init_potential, _ = self.cb.compute_multiobjective_potentials(controllers)
+		progress = True
 
 		# run controller
-		while progress and (not objective_met) and (num_iters < self.num_walkout_iters):
+		while (not objective_met) and (num_iters < self.num_walkout_iters):
 			# set flag so unity will update
 			# self._unity_updated = False # TODO do not render walkouts for better sim behavior
+			# compute multi-objective potential and check for controller progress
+			_, progress = self.cb.compute_multiobjective_potentials(controllers)
 			# compute controller update
 			velocities, objective_met = self.cb.compute_multiobjective_controller_update(controllers)
 			num_iters += 1

@@ -202,6 +202,9 @@ class ControlBasis:
 		for c in self.controllers.keys():
 			self.potentials[c] = np.ones(20)
 
+		# reset number of iterations
+		self.num_iters = 0
+
 		return
 
 	####################
@@ -254,10 +257,10 @@ class ControlBasis:
 			pot = self.controllers[c].potential()
 			self.potentials[c][self.num_iters%len(self.potentials[c])] = pot
 			# check if progress is being made
-			if np.std(self.potentials[c]) <= 1e-7:
+			if (not self.controllers[c].objective_met) and (np.std(self.potentials[c]) <= 1e-7):
 				print("ControlBasis: %s potentials not changing" % c)
 				progress = False
-			if np.all(np.diff(self.potentials[c]) > 0):
+			if (not self.controllers[c].objective_met) and (np.all(np.diff(self.potentials[c]) > 0)):
 				print("ControlBasis: %s potentials increasing" % c)
 				progress = False
 			# compute multi-objective potential

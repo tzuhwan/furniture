@@ -139,7 +139,7 @@ def argsparser():
 	parser.add_argument('--seed', type=int, default=123)
 	parser.add_argument('--debug', type=str2bool, default=False)
 	parser.add_argument('--record_video', type=str2bool, default=False)
-	parser.add_argument('--verbose', type=str2bool, default=False)
+	parser.add_argument('--verbose', type=str2bool, default=True)
 	parser.add_argument('--plan_compositions', type=str2bool, default=False)
 	parser.add_argument('--visualize_samples', type=str2bool, default=False)
 
