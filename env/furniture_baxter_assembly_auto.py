@@ -94,7 +94,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             'chair_bernard_0146': [-0.1, 0.1],
             'desk_mikael_1064': [-0.3, 0.3],
             'shelf_ivar_0678': [-0.2, 0.2],
-            'swivel_chair_0700': [-0.1, 0.1],
+            'swivel_chair_0700': [-0.15, 0.05],
             'table_klubbo_0743': [-0.3, 0.3],
             'table_lack_0825': [-0.2, 0.2]
         }
@@ -201,7 +201,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         
         if config.furniture_name == 'swivel_chair_0700': # swivel_chair:
             self._actions = [
-                ['side', 'left'],    # move arm to the side to clear the place
+                # ['side', 'left'],    # move arm to the side to clear the place
                 ['grasp', 'right', '2_chair_column'],
                 ['connect', 'right', 'column-base,conn_site1', 'base-column,conn_site1'],  # assumption: has grasped first part
                 ['side', 'right'],
@@ -216,19 +216,19 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         res = self.random_place_objects()
         if not res:
             return
-
+        
         for action in self._actions:
             self.action_times = 0
             self.tried_pose = []
-            while self.action_times <5 :
+            while self.action_times < 100:
                 print("trying action ", action)
                 success = self.single_action(config, action, self.action_times)
                 if success:
                     break
                 self.action_times += 1
-            if self.action_times >= 5:
-                print('This task cannot finish')
-                break
+            # if self.action_times >= 12:
+            #     print('This task cannot finish')
+            #     break
 
         if config.record_video:
             self.vr.save_video('FurnitureBaxterAssemblyEnv_test2.mp4')
@@ -250,6 +250,10 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             part_pose_mat = self.pose_in_base_from_name(part)
             left_distance = np.linalg.norm(np.array(part_pose_mat)[:3, 3]-left_hand_pose_mat[:3, 3], axis=-1)
             right_distance = np.linalg.norm(np.array(part_pose_mat)[:3, 3]-right_hand_pose_mat[:3, 3], axis=-1)
+            # if action_times % 2 == 0:
+            #     action[1] = 'left' if left_distance < right_distance else 'right'
+            # else:
+            #     action[1] = 'right' if left_distance < right_distance else 'left'
             action[1] = 'left' if left_distance < right_distance else 'right'
             num_grasps = self.num_grasp_poses[self.object][part]['grasp_poses']
             local_grasp_pose_mat = [T.pose2mat((pose[:3], pose[3:])) for pose in local_grasp_pose[:num_grasps]]
@@ -298,6 +302,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             post_grasp_pose_mat[:3, -1] -= self.lift_offset * post_grasp_pose_mat[:3, 2]  # lift in world frame
             post_grasp_pose = T.mat2pose(post_grasp_pose_mat)
             self._action_sequence.append(("Baxter6DPoseController", (action[1], default_pose[0], default_pose[1], 1e-3)))
+            self._action_sequence.append(("Baxter6DPoseController", (action[1], pre_grasp_pose[0] + [0, 0, 0.15], pre_grasp_pose[1])))
             self._action_sequence.append(("Baxter6DPoseController", (action[1], pre_grasp_pose[0], pre_grasp_pose[1])))
             self._action_sequence.append(("Baxter6DPoseController", (action[1], grasp_pose[0], grasp_pose[1])))
             self._action_sequence.append(("close-gripper", action[1]))
@@ -684,8 +689,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
 
             # compute difference between current and pregrasp pose
             dist_pos = np.linalg.norm(ee_pos - pregrasp_obj_pos)
-            dist_quat = Quaternion.distance(Quaternion(ee_quat), Quaternion(pregrasp_obj_quat))
-            dist_quat = min(dist_quat, math.pi - dist_quat)
+            # dist_quat = Quaternion.distance(Quaternion(ee_quat), Quaternion(pregrasp_obj_quat))
+            # dist_quat = min(dist_quat, math.pi - dist_quat)
+            dist_quat = np.arccos(np.dot(ee_pose_mat[2, :2], pregrasp_pose[2, :2]))  # change to z-axis angle difference
             dist = dist_pos + dist_quat
             print("total distance: %f, position distance: %f, rotation distance: %f"
                 % (dist, dist_pos, dist_quat)
@@ -717,7 +723,7 @@ def main():
     parser.set_defaults(render=True)
 
     config, unparsed = parser.parse_known_args()
-    config.furniture_name = 'table_klubbo_0743' # swivel_chair
+    config.furniture_name = 'swivel_chair_0700' # 
     config.record_video = False
     config.live_connect_coppeliasim = False
     config.grasp_pose_json_file = 'default_furniture_grasp_poses.json'

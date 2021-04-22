@@ -108,8 +108,8 @@ class Baxter6DPoseController(BaxterIKController):
 
 		# update motion speed based on convergence of controller
 		# print("potential spread: ", np.std(self.potentials)) # TODO
-		if np.std(self.potentials) <= 1e-4:#6e-5: # TODO
-			self.set_motion_speeds(move_speed=(self.move_speed + 0.01))
+		# if np.std(self.potentials) <= 1e-4:#6e-5: # TODO
+		# 	self.set_motion_speeds(move_speed=(self.move_speed + 0.01))
 		# else: # TODO
 		# 	if self.move_speed != self.default_move_speed:
 		# 		self.set_motion_speeds(move_speed=self.default_move_speed)
