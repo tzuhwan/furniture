@@ -47,6 +47,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         # initialize FurnitureBaxterEnv
         super().__init__(config)
 
+        # set debug flag
+        self.debug = config.debug
+
         # set furniture name
         self._furniture_name = config.furniture_name
         
@@ -81,34 +84,64 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         self.hold_offset = 0.03  # make sure the gripper covers the object with some distance and object won't slip out
         self.grasp_offset = 0.05 + self.hold_offset
         self.lift_offset = 0.05 # 0.01 is even hard for some cases
-        self.x_range = {
+        self.x_range = { # left-right shift from workspace center (- robot right, viewer left)
             'chair_agne_0007': [-0.2, 0.2],
-            'chair_bernard_0146': [-0.2, 0.2],
+            'chair_bernhard_0146': [-0.2, 0.2],
             'desk_mikael_1064': [-0.5, 0.5],
             'shelf_ivar_0678': [-0.2, 0.2],
             'swivel_chair_0700': [-0.2, 0.2],
             'table_klubbo_0743': [-0.5, 0.5],
             'table_lack_0825': [-0.5, 0.5]
         }
-        self.y_range = {
+        self.y_range = { # forwards-backwards shift from workspace center (+ towards robot)
             'chair_agne_0007': [-0.2, 0.2],
-            'chair_bernard_0146': [-0.1, 0.1],
+            'chair_bernhard_0146': [-0.1, 0.1],
             'desk_mikael_1064': [-0.3, 0.3],
             'shelf_ivar_0678': [-0.2, 0.2],
-            'swivel_chair_0700': [-0.1, 0.1],
+            'swivel_chair_0700': [0.0, 0.2],
             'table_klubbo_0743': [-0.3, 0.3],
             'table_lack_0825': [-0.2, 0.2]
         }
         self.n_iter_random_objects = 1000
+
+        # dictionary of furniture names to list of parts that need to be flipped
+        self.flip_parts = {
+            'chair_agne_0007': ['3_seat'],
+            'table_klubbo_0743': ['5_table_top'],
+            'table_lack_0825': ['1_table_leg1', '2_table_leg2', '3_table_leg3', '4_table_leg4', '5_table_top']
+        }
+        # dictionary of furniture names to list of parts that have bounded positions for reachability (usually towards center of workspace)
+        # TODO currently not used since x_range and y_range (set above) should keep table tops within reachable workspace even if not in center
+        self.position_bounds = {
+            'table_klubbo_0743': ['5_table_top'],
+            'table_lack_0825': ['5_table_top']
+        }
+        # dictionary of furniture names to dictionary of parts to bounded rotations for reachability
+        self.rotation_bounds = {
+            'table_lack_0825': {
+                '5_table_top': [(np.pi / 180) * -10, (np.pi / 180) * 10]
+            }
+        }
+
     """
     Use existing 2D random position with standing random z rotation as pose initialization,
-    TODO: add lying down pose, make table, desk top plane upside-down, close to center, chair_agne_seat upside-down
+    TODO: add lying down pose, make table, desk top plane upside-down, close to center
     """
     def random_place_objects(self):
+        self.mujoco_model.initializer.object_name = self._furniture_name
         self.mujoco_model.initializer.x_range = self.x_range[self._furniture_name]
         self.mujoco_model.initializer.y_range = self.y_range[self._furniture_name]
         part_x_range = self.x_range[self._furniture_name]
         part_y_range = self.y_range[self._furniture_name]
+        # for particular objects, set initializer to flip parts so connection sites are oriented properly
+        if self._furniture_name in self.flip_parts.keys():
+            self.mujoco_model.initializer.flip_parts = self.flip_parts[self._furniture_name]
+        # for particular objects, set initializer to limit position of parts for reachability
+        if self._furniture_name in self.position_bounds.keys(): # TODO this affects nothing
+            self.mujoco_model.initializer.part_position_bounds = self.position_bounds[self._furniture_name]
+        # for particular objects, set initializer to limit rotation of parts for reachability
+        if self._furniture_name in self.rotation_bounds.keys():
+            self.mujoco_model.initializer.part_rotation_bounds = self.rotation_bounds[self._furniture_name]
         collision = True  # repeat random generation till parts are not in collision at first
         i_random = 0
         while collision and i_random < self.n_iter_random_objects:
@@ -116,7 +149,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             pos, quat = self.mujoco_model.place_objects()
             for i, (obj_name, obj_mjcf) in enumerate(self.mujoco_objects.items()):
                 self._set_qpos(obj_name, pos[i], quat[i])
-                print('{} pos: {}, quat {}'.format(obj_name, pos[i], quat[i]))
+                print('{} pos: {}, quat: {}'.format(obj_name, pos[i], quat[i]))
             self._unity_updated = False
             # velocities = np.zeros(14)
             # self.perform_command(velocities, self.gripper_grabs, True)
@@ -256,28 +289,33 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             ws_grasp_pose_mat = [T.pose_in_A_to_pose_in_B(grasp_pose_mat0, part_pose_mat) for grasp_pose_mat0 in local_grasp_pose_mat]
             found_downwards_grasppose = False
 
-            # TODO TODO TODO check computation of pregarsp poses; Emily copied this from down below
             # initialize list of pregrasp, grasp pose tuples
             pregrasp_grasp_pose_mats = []
             # compute pregrasp pose for each possible grasp pose
             for obj_grasp_mat in ws_grasp_pose_mat:
-                # copied from down below; check this?
                 obj2eef_mat = self.left_obj2eef_mat if action[1] == 'left' else self.right_obj2eef_mat
-                grasp_pose_mat = obj_grasp_mat.dot(obj2eef_mat) # TODO isn't grasp pose already in base frame? what is this transformation doing?
-                grasp_pose_mat[:3, -1] += self.hold_offset * grasp_pose_mat[:3, 2] # TODO does this account for not-downward grasps?  how do we determine what dimension to apply offset to?
+                grasp_pose_mat = obj_grasp_mat.dot(obj2eef_mat)
+                grasp_pose_mat[:3, -1] += self.hold_offset * grasp_pose_mat[:3, 2]
                 grasp_pose = T.mat2pose(grasp_pose_mat)
                 pre_eef_grasp_pose_mat = grasp_pose_mat.copy()
                 pre_eef_grasp_pose_mat[:3, -1] -= self.grasp_offset * pre_eef_grasp_pose_mat[:3, 2]
-                pregrasp_grasp_pose_mats.append((obj_grasp_mat, pre_eef_grasp_pose_mat))
+                pregrasp_grasp_pose_mats.append((pre_eef_grasp_pose_mat, obj_grasp_mat))
 
             dists_poses = self.compute_pregrasp_pose_distances(pregrasp_grasp_pose_mats, action[1])
             print("poses and grasps: ")
             for i in range(len(dists_poses)):
                 print("pose %d, distance %f" % (i, dists_poses[i][0]))
 
-            # TODO TODO TODO check selection of grasp poses by distance
+            # select grasp poses by distance
             for dist, pregrasp_pose, obj_pose in dists_poses:
-                if obj_pose not in self.tried_pose: # TODO TODO TODO this is a bug, this check will not work
+                # check if grasp pose has been tried before
+                previously_tried_pose = False
+                if len(self.tried_pose) != 0:
+                    for t_p in self.tried_pose:
+                        if np.all(np.abs(obj_pose - t_p) < 1e-10):
+                            previously_tried_pose = True
+                # if not tried before, try grasp pose
+                if not previously_tried_pose:
                     print("trying grasp pose closest to %s arm, distance: %f" % (action[1], dist))
                     obj_grasp_mat = obj_pose
                     break
@@ -342,7 +380,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             self._action_sequence.append(("Baxter6DPoseController", (action[1], grasp_pose[0], grasp_pose[1])))
             self._action_sequence.append(("close-gripper", action[1]))
             self._action_sequence.append(("Baxter6DPoseController", (action[1], post_grasp_pose[0], post_grasp_pose[1])))
-        elif action[0] in ['connect', 'screw']:  # todo: develop rotation controller for screw motion
+        elif action[0] in ['connect', 'insert', 'screw']:  # todo: develop rotation controller for screw motion
             m_site = action[2]
             t_site = action[3]
             target_site_qpos = self._site_xpos_xquat(t_site)
@@ -594,7 +632,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     break
 
     """
-    Computes the distances between current end-effector pose and possible part grasp poses
+    Computes the distances between current end-effector pose and possible part grasp poses.
+    Note: distance is computed based on position and rotation, since positions of the grasp poses will
+          be the same for any poses defined on the same local point on the object.
 
     @param grasp_pose_mats, a list of part grasp poses in base frame
     @param control_arm, the arm being controlled for this action
@@ -623,9 +663,10 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             dist_quat = Quaternion.distance(Quaternion(ee_quat), Quaternion(obj_quat))
             dist_quat = min(dist_quat, math.pi - dist_quat)
             dist = dist_pos + dist_quat
-            print("total distance: %f, position distance: %f, rotation distance: %f"
-                % (dist, dist_pos, dist_quat)
-            )
+            if self.debug:
+                print("total distance: %f, position distance: %f, rotation distance: %f"
+                    % (dist, dist_pos, dist_quat)
+                )
 
             # add distance and pose to list of tuples
             dists_poses.append((dist, grasp_pose))
@@ -636,7 +677,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         return dists_poses
 
     """
-    Computes the distances between current end-effector pose and possible part pre-grasp poses
+    Computes the distances between current end-effector pose and possible part pre-grasp poses.
+    Note: distance is computed based on position only, since pre-grasp poses are defined off the object
+          along the approach axis.
 
     @param pregrasp_grasp_pose_mats, a list of part (pregrasp, grasp) pose tuples in base frame
     @param control_arm, the arm being controlled for this action
@@ -666,12 +709,13 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             dist_quat = Quaternion.distance(Quaternion(ee_quat), Quaternion(pregrasp_obj_quat))
             dist_quat = min(dist_quat, math.pi - dist_quat)
             dist = dist_pos + dist_quat
-            print("total distance: %f, position distance: %f, rotation distance: %f"
-                % (dist, dist_pos, dist_quat)
-            )
+            if self.debug:
+                print("total distance: %f, position distance: %f, rotation distance: %f"
+                    % (dist, dist_pos, dist_quat)
+                )
 
             # add distance and pose to list of tuples
-            dists_poses.append((dist, pregrasp_pose, grasp_pose))
+            dists_poses.append((dist_pos, pregrasp_pose, grasp_pose))
 
         # sort grasp poses by shortest distance
         dists_poses.sort()
