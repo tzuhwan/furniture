@@ -1071,7 +1071,7 @@ class FurnitureEnv(metaclass=EnvMeta):
                 self._furniture_id = self._config.furniture_id
             else:
                 self._furniture_id = furniture_id
-            self._reset_internal()
+        self._reset_internal()
 
         # store robot's condim and contype
         robot_col = {}

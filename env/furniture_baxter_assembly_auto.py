@@ -52,7 +52,6 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
 
         # set furniture name
         self._furniture_name = config.furniture_name
-        
         # access to prelabeled poses
         self.pose_reader = PoseReader(connect=config.live_connect_coppeliasim)
         if not config.live_connect_coppeliasim:
@@ -98,7 +97,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             'chair_bernhard_0146': [-0.1, 0.1],
             'desk_mikael_1064': [-0.3, 0.3],
             'shelf_ivar_0678': [-0.2, 0.2],
-            'swivel_chair_0700': [0.0, 0.2],
+            'swivel_chair_0700': [-0.15, 0.05], # [0.0, 0.2]
             'table_klubbo_0743': [-0.3, 0.3],
             'table_lack_0825': [-0.2, 0.2]
         }
@@ -194,7 +193,8 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
 
         # initialize gripper states (both open)
         self.gripper_grabs = [-1, -1]
-        self.reset(config.furniture_id, config.background)
+        self._furniture_id = env.models.furniture_name2id[self._furniture_name]
+        self.reset(self._furniture_id, config.background)
         # reset swivel base
         if config.furniture_name == 'swivel_chair_0700': # swivel chair
             print("reseting swivel chair base pose")
@@ -211,15 +211,15 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                [1.0, 0.0, 0.0, 0.0]
             )
 
-        raw_name = env.models.furniture_names[self._furniture_id]
-        self.object = raw_name[:raw_name.rfind('_')]
+        # raw_name = env.models.furniture_names[self._furniture_id]
+        self.object = self._furniture_name[:self._furniture_name.rfind('_')]
         self._actions = pyperplan.plan_sequence(self.object)
         
         self.default_eef_mat = {'left': self.pose_in_base_from_name('left_gripper_base'), 'right': self.pose_in_base_from_name('right_gripper_base')}
         left_gripper_pose = (self.pose_in_base_from_name('l_gripper_l_finger_tip') + self.pose_in_base_from_name('l_gripper_r_finger_tip')) / 2  # orientations are the same
-        self.left_obj2eef_mat = T.pose_inv(left_gripper_pose).dot(self.default_eef_mat['left'])
+        self.left_gripper_base2eef_mat = T.pose_inv(left_gripper_pose).dot(self.default_eef_mat['left'])
         right_gripper_pose = (self.pose_in_base_from_name('r_gripper_l_finger_tip') + self.pose_in_base_from_name('r_gripper_r_finger_tip')) / 2  # orientations are the same
-        self.right_obj2eef_mat = T.pose_inv(right_gripper_pose).dot(self.default_eef_mat['right'])
+        self.right_gripper_base2eef_mat = T.pose_inv(right_gripper_pose).dot(self.default_eef_mat['right'])
         self.side_eef_mat = copy.deepcopy(self.default_eef_mat)
         self.side_eef_mat['left'][1, 3] += 0.15
         self.side_eef_mat['right'][1, 3] -= 0.15  # move arm further in base y direction to clear the space
@@ -234,7 +234,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         
         if config.furniture_name == 'swivel_chair_0700': # swivel_chair:
             self._actions = [
-                ['side', 'left'],    # move arm to the side to clear the place
+                # ['side', 'left'],    # move arm to the side to clear the place
                 ['grasp', 'right', '2_chair_column'],
                 ['connect', 'right', 'column-base,conn_site1', 'base-column,conn_site1'],  # assumption: has grasped first part
                 ['side', 'right'],
@@ -249,19 +249,19 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         res = self.random_place_objects()
         if not res:
             return
-
+        
         for action in self._actions:
             self.action_times = 0
             self.tried_pose = []
-            while self.action_times <5 :
+            while self.action_times < 100:
                 print("trying action ", action)
                 success = self.single_action(config, action, self.action_times)
-                if success or self.action_times >= 5:
+                if success:
                     break
                 self.action_times += 1
-            if self.action_times >= 5:
-                print('This task cannot finish')
-                break
+            # if self.action_times >= 12:
+            #     print('This task cannot finish')
+            #     break
 
         if config.record_video:
             self.vr.save_video('FurnitureBaxterAssemblyEnv_test2.mp4')
@@ -283,23 +283,26 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             part_pose_mat = self.pose_in_base_from_name(part)
             left_distance = np.linalg.norm(np.array(part_pose_mat)[:3, 3]-left_hand_pose_mat[:3, 3], axis=-1)
             right_distance = np.linalg.norm(np.array(part_pose_mat)[:3, 3]-right_hand_pose_mat[:3, 3], axis=-1)
+            # if action_times % 2 == 0:
+            #     action[1] = 'left' if left_distance < right_distance else 'right'
+            # else:
+            #     action[1] = 'right' if left_distance < right_distance else 'left'
             action[1] = 'left' if left_distance < right_distance else 'right'
             num_grasps = self.num_grasp_poses[self.object][part]['grasp_poses']
             local_grasp_pose_mat = [T.pose2mat((pose[:3], pose[3:])) for pose in local_grasp_pose[:num_grasps]]
             ws_grasp_pose_mat = [T.pose_in_A_to_pose_in_B(grasp_pose_mat0, part_pose_mat) for grasp_pose_mat0 in local_grasp_pose_mat]
             found_downwards_grasppose = False
 
+            obj2eef_mat = self.left_gripper_base2eef_mat if action[1] == 'left' else self.right_gripper_base2eef_mat
             # initialize list of pregrasp, grasp pose tuples
             pregrasp_grasp_pose_mats = []
             # compute pregrasp pose for each possible grasp pose
             for obj_grasp_mat in ws_grasp_pose_mat:
-                obj2eef_mat = self.left_obj2eef_mat if action[1] == 'left' else self.right_obj2eef_mat
                 grasp_pose_mat = obj_grasp_mat.dot(obj2eef_mat)
-                grasp_pose_mat[:3, -1] += self.hold_offset * grasp_pose_mat[:3, 2]
-                grasp_pose = T.mat2pose(grasp_pose_mat)
                 pre_eef_grasp_pose_mat = grasp_pose_mat.copy()
+                grasp_pose_mat[:3, -1] += self.hold_offset * grasp_pose_mat[:3, 2]
                 pre_eef_grasp_pose_mat[:3, -1] -= self.grasp_offset * pre_eef_grasp_pose_mat[:3, 2]
-                pregrasp_grasp_pose_mats.append((pre_eef_grasp_pose_mat, obj_grasp_mat))
+                pregrasp_grasp_pose_mats.append((pre_eef_grasp_pose_mat, grasp_pose_mat))
 
             dists_poses = self.compute_pregrasp_pose_distances(pregrasp_grasp_pose_mats, action[1])
             print("poses and grasps: ")
@@ -307,18 +310,35 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 print("pose %d, distance %f" % (i, dists_poses[i][0]))
 
             # select grasp poses by distance
-            for dist, pregrasp_pose, obj_pose in dists_poses:
-                # check if grasp pose has been tried before
+            tried_pose_threshold = 0.01
+            for dist, pregrasp_pose_mat, grasp_pose_mat in dists_poses:
                 previously_tried_pose = False
-                if len(self.tried_pose) != 0:
-                    for t_p in self.tried_pose:
-                        if np.all(np.abs(obj_pose - t_p) < 1e-10):
-                            previously_tried_pose = True
-                # if not tried before, try grasp pose
+                # check whether the current grasp pose is tried or not
+                grasp_pose = T.mat2pose(grasp_pose_mat)
+                for t_p in self.tried_pose:
+                    dist_pos = np.linalg.norm(grasp_pose[0] - t_p[0])
+                    dist_quat = Quaternion.distance(Quaternion(grasp_pose[1]), Quaternion(t_p[1]))
+                    dist_quat = min(dist_quat, math.pi - dist_quat)
+                    tried_pose_dist = dist_pos + dist_quat
+                    if tried_pose_dist < tried_pose_threshold:
+                        previously_tried_pose = True
                 if not previously_tried_pose:
                     print("trying grasp pose closest to %s arm, distance: %f" % (action[1], dist))
-                    obj_grasp_mat = obj_pose
                     break
+
+            self.tried_pose.append(grasp_pose)
+            default_pose_mat = self.default_eef_mat[action[1]]
+            default_pose = T.mat2pose(default_pose_mat)
+            pre_grasp_pose = T.mat2pose(pregrasp_pose_mat)
+            post_grasp_pose_mat = grasp_pose_mat.copy()
+            post_grasp_pose_mat[:3, -1] -= self.lift_offset * post_grasp_pose_mat[:3, 2]  # lift in world frame
+            post_grasp_pose = T.mat2pose(post_grasp_pose_mat)
+            self._action_sequence.append(("Baxter6DPoseController", (action[1], default_pose[0], default_pose[1], 1e-3)))
+            self._action_sequence.append(("Baxter6DPoseController", (action[1], pre_grasp_pose[0] + [0, 0, 0.15], pre_grasp_pose[1])))
+            self._action_sequence.append(("Baxter6DPoseController", (action[1], pre_grasp_pose[0], pre_grasp_pose[1])))
+            self._action_sequence.append(("Baxter6DPoseController", (action[1], grasp_pose[0], grasp_pose[1])))
+            self._action_sequence.append(("close-gripper", action[1]))
+            self._action_sequence.append( ("Baxter6DPoseController", (action[1], post_grasp_pose[0], post_grasp_pose[1])))
 
             # TODO TODO TODO uncomment later; Xiaotong's original grasp selection
             # for obj_grasp_mat in ws_grasp_pose_mat:
@@ -331,7 +351,6 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             #                     continue
             #         found_downwards_grasppose = True
             #         break
-            self.hold_offset = 0.03
             # TODO TODO TODO uncomment later; Xiaotong's code for using helper poses
             # if not found_downwards_grasppose:
             #     # using helper pose
@@ -361,26 +380,27 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             #             found_downwards_grasppose = True
             # if not found_downwards_grasppose:
             #     print('cannot find downwards grasppose')
-            self.tried_pose.append(obj_grasp_mat)
-            # 2. plus offset to gripper_base which is end effector in controller, add other offsets for pre- and post- grasp pose
-            obj2eef_mat = self.left_obj2eef_mat if action[1] == 'left' else self.right_obj2eef_mat
-            grasp_pose_mat = obj_grasp_mat.dot(obj2eef_mat)
-            grasp_pose_mat[:3, -1] += self.hold_offset * grasp_pose_mat[:3, 2]
-            grasp_pose = T.mat2pose(grasp_pose_mat)
-            pre_eef_grasp_pose_mat = grasp_pose_mat.copy()
-            pre_eef_grasp_pose_mat[:3, -1] -= self.grasp_offset * pre_eef_grasp_pose_mat[:3, 2]
-            pre_grasp_pose = T.mat2pose(pre_eef_grasp_pose_mat)
-            post_grasp_pose_mat = grasp_pose_mat.copy()
-            post_grasp_pose_mat[:3, -1] -= self.lift_offset * post_grasp_pose_mat[:3, 2] # lift in world frame
-            post_grasp_pose = T.mat2pose(post_grasp_pose_mat)
-            target_pose_mat = self.default_eef_mat[action[1]]
-            target_pose = T.mat2pose(target_pose_mat)
-            self._action_sequence.append(("Baxter6DPoseController", (action[1], target_pose[0], target_pose[1], 1e-3)))
-            self._action_sequence.append(("Baxter6DPoseController", (action[1], pre_grasp_pose[0], pre_grasp_pose[1])))
-            self._action_sequence.append(("Baxter6DPoseController", (action[1], grasp_pose[0], grasp_pose[1])))
-            self._action_sequence.append(("close-gripper", action[1]))
-            self._action_sequence.append(("Baxter6DPoseController", (action[1], post_grasp_pose[0], post_grasp_pose[1])))
-        elif action[0] in ['connect', 'insert', 'screw']:  # todo: develop rotation controller for screw motion
+
+            # self.tried_pose.append(obj_grasp_mat)
+            # # 2. plus offset to gripper_base which is end effector in controller, add other offsets for pre- and post- grasp pose
+            # obj2eef_mat = self.left_obj2eef_mat if action[1] == 'left' else self.right_obj2eef_mat
+            # grasp_pose_mat = obj_grasp_mat.dot(obj2eef_mat)
+            # grasp_pose_mat[:3, -1] += self.hold_offset * grasp_pose_mat[:3, 2]
+            # grasp_pose = T.mat2pose(grasp_pose_mat)
+            # pre_eef_grasp_pose_mat = grasp_pose_mat.copy()
+            # pre_eef_grasp_pose_mat[:3, -1] -= self.grasp_offset * pre_eef_grasp_pose_mat[:3, 2]
+            # pre_grasp_pose = T.mat2pose(pre_eef_grasp_pose_mat)
+            # post_grasp_pose_mat = grasp_pose_mat.copy()
+            # post_grasp_pose_mat[:3, -1] -= self.lift_offset * post_grasp_pose_mat[:3, 2] # lift in world frame
+            # post_grasp_pose = T.mat2pose(post_grasp_pose_mat)
+            # target_pose_mat = self.default_eef_mat[action[1]]
+            # target_pose = T.mat2pose(target_pose_mat)
+            # self._action_sequence.append(("Baxter6DPoseController", (action[1], target_pose[0], target_pose[1], 1e-3)))
+            # self._action_sequence.append(("Baxter6DPoseController", (action[1], pre_grasp_pose[0], pre_grasp_pose[1])))
+            # self._action_sequence.append(("Baxter6DPoseController", (action[1], grasp_pose[0], grasp_pose[1])))
+            # self._action_sequence.append(("close-gripper", action[1]))
+            # self._action_sequence.append(("Baxter6DPoseController", (action[1], post_grasp_pose[0], post_grasp_pose[1])))
+        elif action[0] in ['connect', 'screw']:  # todo: develop rotation controller for screw motion
             m_site = action[2]
             t_site = action[3]
             target_site_qpos = self._site_xpos_xquat(t_site)
@@ -706,8 +726,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
 
             # compute difference between current and pregrasp pose
             dist_pos = np.linalg.norm(ee_pos - pregrasp_obj_pos)
-            dist_quat = Quaternion.distance(Quaternion(ee_quat), Quaternion(pregrasp_obj_quat))
-            dist_quat = min(dist_quat, math.pi - dist_quat)
+            # dist_quat = Quaternion.distance(Quaternion(ee_quat), Quaternion(pregrasp_obj_quat))
+            # dist_quat = min(dist_quat, math.pi - dist_quat)
+            dist_quat = np.arccos(np.dot(ee_pose_mat[2, :2], pregrasp_pose[2, :2])) # change to z-axis angle difference
             dist = dist_pos + dist_quat
             if self.debug:
                 print("total distance: %f, position distance: %f, rotation distance: %f"
@@ -715,7 +736,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 )
 
             # add distance and pose to list of tuples
-            dists_poses.append((dist_pos, pregrasp_pose, grasp_pose))
+            dists_poses.append((dist, pregrasp_pose, grasp_pose))
 
         # sort grasp poses by shortest distance
         dists_poses.sort()
@@ -740,7 +761,7 @@ def main():
     parser.set_defaults(render=True)
 
     config, unparsed = parser.parse_known_args()
-    config.furniture_id = 9 # swivel_chair
+    config.furniture_name = 'swivel_chair_0700'
     config.record_video = False
     config.live_connect_coppeliasim = False
     config.grasp_pose_json_file = 'default_furniture_grasp_poses.json'
