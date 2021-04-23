@@ -2,6 +2,7 @@ import collections
 import numpy as np
 
 from env.models.base import RandomizationError
+import env.transform_utils as T
 
 
 class ObjectPositionSampler:
@@ -66,6 +67,10 @@ class UniformRandomSampler(ObjectPositionSampler):
         self.ensure_object_boundary_in_range = ensure_object_boundary_in_range
         self.z_rotation = z_rotation
         self.rng = rng
+        self.object_name = None
+        self.flip_parts = []
+        self.part_position_bounds = []
+        self.part_rotation_bounds = {}
 
     def sample_x(self, object_horizontal_radius):
         x_range = self.x_range
@@ -89,7 +94,7 @@ class UniformRandomSampler(ObjectPositionSampler):
             maximum -= object_horizontal_radius
         return self.rng.uniform(high=maximum, low=minimum)
 
-    def sample_quat(self):
+    def sample_quat(self, part_name=None):
         if self.z_rotation is None:
             rot_angle = self.rng.uniform(high=2 * np.pi, low=0)
         elif isinstance(self.z_rotation, collections.Iterable):
@@ -98,6 +103,19 @@ class UniformRandomSampler(ObjectPositionSampler):
             )
         else:
             rot_angle = self.z_rotation
+
+        # check if rotation angle needs to be bounded
+        if part_name in self.part_rotation_bounds.keys():
+            # recompute angle for part
+            rot_angle = self.rng.uniform(
+                high=max(self.part_rotation_bounds[part_name]), low=min(self.part_rotation_bounds[part_name])
+            )
+
+        # check if part needs to be flipped
+        if part_name in self.flip_parts:
+            flip_x_quat = [np.cos(np.pi / 2), np.sin(np.pi / 2), 0, 0] # rotation by 90 degrees about x axis
+            z_quat = [np.cos(rot_angle / 2), 0, 0, -np.sin(rot_angle / 2)] # rotation about z axis
+            return T.quat_multiply(z_quat, flip_x_quat) # flip about x, then rotate about z
 
         return [np.cos(rot_angle / 2), 0, 0, np.sin(rot_angle / 2)]  # rotation about z axis which is upwards
 
@@ -132,7 +150,7 @@ class UniformRandomSampler(ObjectPositionSampler):
                     placed_objects.append((object_x, object_y, horizontal_radius))
                     # random z-rotation
 
-                    quat = self.sample_quat()
+                    quat = self.sample_quat(obj_name)
 
                     quat_arr.append(quat)
                     pos_arr.append(pos)

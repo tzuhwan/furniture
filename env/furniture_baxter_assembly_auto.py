@@ -47,6 +47,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         # initialize FurnitureBaxterEnv
         super().__init__(config)
 
+        # set debug flag
+        self.debug = config.debug
+
         # set furniture name
         self._furniture_name = config.furniture_name
         # access to prelabeled poses
@@ -80,34 +83,64 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         self.hold_offset = 0.03  # make sure the gripper covers the object with some distance and object won't slip out
         self.grasp_offset = 0.05 + self.hold_offset
         self.lift_offset = 0.05 # 0.01 is even hard for some cases
-        self.x_range = {
+        self.x_range = { # left-right shift from workspace center (- robot right, viewer left)
             'chair_agne_0007': [-0.2, 0.2],
-            'chair_bernard_0146': [-0.2, 0.2],
+            'chair_bernhard_0146': [-0.2, 0.2],
             'desk_mikael_1064': [-0.5, 0.5],
             'shelf_ivar_0678': [-0.2, 0.2],
             'swivel_chair_0700': [-0.2, 0.2],
             'table_klubbo_0743': [-0.5, 0.5],
             'table_lack_0825': [-0.5, 0.5]
         }
-        self.y_range = {
+        self.y_range = { # forwards-backwards shift from workspace center (+ towards robot)
             'chair_agne_0007': [-0.2, 0.2],
-            'chair_bernard_0146': [-0.1, 0.1],
+            'chair_bernhard_0146': [-0.1, 0.1],
             'desk_mikael_1064': [-0.3, 0.3],
             'shelf_ivar_0678': [-0.2, 0.2],
-            'swivel_chair_0700': [-0.15, 0.05],
+            'swivel_chair_0700': [-0.15, 0.05], # [0.0, 0.2]
             'table_klubbo_0743': [-0.3, 0.3],
             'table_lack_0825': [-0.2, 0.2]
         }
         self.n_iter_random_objects = 1000
+
+        # dictionary of furniture names to list of parts that need to be flipped
+        self.flip_parts = {
+            'chair_agne_0007': ['3_seat'],
+            'table_klubbo_0743': ['5_table_top'],
+            'table_lack_0825': ['1_table_leg1', '2_table_leg2', '3_table_leg3', '4_table_leg4', '5_table_top']
+        }
+        # dictionary of furniture names to list of parts that have bounded positions for reachability (usually towards center of workspace)
+        # TODO currently not used since x_range and y_range (set above) should keep table tops within reachable workspace even if not in center
+        self.position_bounds = {
+            'table_klubbo_0743': ['5_table_top'],
+            'table_lack_0825': ['5_table_top']
+        }
+        # dictionary of furniture names to dictionary of parts to bounded rotations for reachability
+        self.rotation_bounds = {
+            'table_lack_0825': {
+                '5_table_top': [(np.pi / 180) * -10, (np.pi / 180) * 10]
+            }
+        }
+
     """
     Use existing 2D random position with standing random z rotation as pose initialization,
-    TODO: add lying down pose, make table, desk top plane upside-down, close to center, chair_agne_seat upside-down
+    TODO: add lying down pose, make table, desk top plane upside-down, close to center
     """
     def random_place_objects(self):
+        self.mujoco_model.initializer.object_name = self._furniture_name
         self.mujoco_model.initializer.x_range = self.x_range[self._furniture_name]
         self.mujoco_model.initializer.y_range = self.y_range[self._furniture_name]
         part_x_range = self.x_range[self._furniture_name]
         part_y_range = self.y_range[self._furniture_name]
+        # for particular objects, set initializer to flip parts so connection sites are oriented properly
+        if self._furniture_name in self.flip_parts.keys():
+            self.mujoco_model.initializer.flip_parts = self.flip_parts[self._furniture_name]
+        # for particular objects, set initializer to limit position of parts for reachability
+        if self._furniture_name in self.position_bounds.keys(): # TODO this affects nothing
+            self.mujoco_model.initializer.part_position_bounds = self.position_bounds[self._furniture_name]
+        # for particular objects, set initializer to limit rotation of parts for reachability
+        if self._furniture_name in self.rotation_bounds.keys():
+            self.mujoco_model.initializer.part_rotation_bounds = self.rotation_bounds[self._furniture_name]
         collision = True  # repeat random generation till parts are not in collision at first
         i_random = 0
         while collision and i_random < self.n_iter_random_objects:
@@ -115,7 +148,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             pos, quat = self.mujoco_model.place_objects()
             for i, (obj_name, obj_mjcf) in enumerate(self.mujoco_objects.items()):
                 self._set_qpos(obj_name, pos[i], quat[i])
-                print('{} pos: {}, quat {}'.format(obj_name, pos[i], quat[i]))
+                print('{} pos: {}, quat: {}'.format(obj_name, pos[i], quat[i]))
             self._unity_updated = False
             # velocities = np.zeros(14)
             # self.perform_command(velocities, self.gripper_grabs, True)
@@ -648,7 +681,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     break
 
     """
-    Computes the distances between current end-effector pose and possible part grasp poses
+    Computes the distances between current end-effector pose and possible part grasp poses.
+    Note: distance is computed based on position and rotation, since positions of the grasp poses will
+          be the same for any poses defined on the same local point on the object.
 
     @param grasp_pose_mats, a list of part grasp poses in base frame
     @param control_arm, the arm being controlled for this action
@@ -677,9 +712,10 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             dist_quat = Quaternion.distance(Quaternion(ee_quat), Quaternion(obj_quat))
             dist_quat = min(dist_quat, math.pi - dist_quat)
             dist = dist_pos + dist_quat
-            print("total distance: %f, position distance: %f, rotation distance: %f"
-                % (dist, dist_pos, dist_quat)
-            )
+            if self.debug:
+                print("total distance: %f, position distance: %f, rotation distance: %f"
+                    % (dist, dist_pos, dist_quat)
+                )
 
             # add distance and pose to list of tuples
             dists_poses.append((dist, grasp_pose))
@@ -690,7 +726,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         return dists_poses
 
     """
-    Computes the distances between current end-effector pose and possible part pre-grasp poses
+    Computes the distances between current end-effector pose and possible part pre-grasp poses.
+    Note: distance is computed based on position only, since pre-grasp poses are defined off the object
+          along the approach axis.
 
     @param pregrasp_grasp_pose_mats, a list of part (pregrasp, grasp) pose tuples in base frame
     @param control_arm, the arm being controlled for this action
@@ -719,11 +757,12 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             dist_pos = np.linalg.norm(ee_pos - pregrasp_obj_pos)
             # dist_quat = Quaternion.distance(Quaternion(ee_quat), Quaternion(pregrasp_obj_quat))
             # dist_quat = min(dist_quat, math.pi - dist_quat)
-            dist_quat = np.arccos(np.dot(ee_pose_mat[2, :2], pregrasp_pose[2, :2]))  # change to z-axis angle difference
+            dist_quat = np.arccos(np.dot(ee_pose_mat[2, :2], pregrasp_pose[2, :2])) # change to z-axis angle difference
             dist = dist_pos + dist_quat
-            print("total distance: %f, position distance: %f, rotation distance: %f"
-                % (dist, dist_pos, dist_quat)
-            )
+            if self.debug:
+                print("total distance: %f, position distance: %f, rotation distance: %f"
+                    % (dist, dist_pos, dist_quat)
+                )
 
             # add distance and pose to list of tuples
             dists_poses.append((dist, pregrasp_pose, grasp_pose))
@@ -751,7 +790,7 @@ def main():
     parser.set_defaults(render=True)
 
     config, unparsed = parser.parse_known_args()
-    config.furniture_name = 'swivel_chair_0700' # 
+    config.furniture_name = 'swivel_chair_0700'
     config.record_video = False
     config.live_connect_coppeliasim = False
     config.grasp_pose_json_file = 'default_furniture_grasp_poses.json'
