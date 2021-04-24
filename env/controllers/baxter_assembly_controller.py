@@ -125,10 +125,10 @@ class BaxterAssemblyController(BaxterIKController):
 		# 		self.set_motion_speeds(move_speed=self.default_move_speed)
 
 		# check for joint limits
-		self.limit_reached = self.check_joint_limits()
+		self.limit_reached, joints_at_limit = self.check_joint_limits()
 		if self.limit_reached:
-			if not self.suppress_output:
-				print("%s: Joint limit reached, controller behavior will not work well." % self.controller_name())
+			if (not self.suppress_output) and ((self.num_iters % self.num_iters_print) == 0):
+				print("%s: Joint limit reached, controller behavior will not work well. Joints at limit: " % self.controller_name(), joints_at_limit)
 
 		# initialize velocities for proportional controller
 		velocities = np.zeros(14)
@@ -281,6 +281,7 @@ class BaxterAssemblyController(BaxterIKController):
 	Checks for joint limits.
 
 	@return boolean indicating if a joint limit has been reached
+	@return list of joints at limit
 	"""
 	def check_joint_limits(self):
 		# compute relevant joint info
@@ -291,6 +292,7 @@ class BaxterAssemblyController(BaxterIKController):
 
 		# set flag for if joints are at limit
 		limit_reached = False
+		joints_at_limit = []
 
 		# compare current joints to joint limits
 		for i in range(len(curr_q)):
@@ -301,14 +303,16 @@ class BaxterAssemblyController(BaxterIKController):
 				)
 			if (curr_q[i] <= j_lower) or (abs(curr_q[i] - j_lower) <= 1e-3):
 				limit_reached = True
+				joints_at_limit.append(j_name)
 				if self.debug:
 					print("joint %s pretty close to lower limit" % j_name)
 			if (curr_q[i] >= j_upper) or (abs(curr_q[i] - j_upper) <= 1e-3):
 				limit_reached = True
+				joints_at_limit.append(j_name)
 				if self.debug:
 					print("joint %s pretty close to upper limit" % j_name)
 
-		return limit_reached
+		return limit_reached, joints_at_limit
 
 	###################################################
 	### JACOBIAN AND NULLSPACE PROJECTION FUNCTIONS ###
