@@ -457,7 +457,8 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 # m_body_name = self.sim.model.body_names[m_body_id]
                 # new_pos, new_quat = T.transform_to_target_quat(moving_site_qpos, self._get_qpos(m_body_name), target_site_qpos[3:])
                 translation = target_site_qpos_mat[:3, 3] - moving_site_qpos_mat[:3, 3]
-                rotation = (target_site_qpos_mat[:3, :3]).transpose().dot(moving_site_qpos_mat[:3, :3])
+                rotation = (moving_site_qpos_mat[:3, :3]).transpose().dot(target_site_qpos_mat[:3, :3])
+                # rotation = (target_site_qpos_mat[:3, :3]).transpose().dot(moving_site_qpos_mat[:3, :3])
                 appended_rotation = self.Rotation_interpolation(rotation)
                 left_distance = np.linalg.norm(np.array(moving_site_qpos_mat)[:3, 3]-left_hand_pose_mat[:3, 3], axis=-1)
                 right_distance = np.linalg.norm(np.array(moving_site_qpos_mat)[:3, 3]-right_hand_pose_mat[:3, 3], axis=-1)
