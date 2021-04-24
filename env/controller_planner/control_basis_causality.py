@@ -115,7 +115,7 @@ class ControlBasis:
 	"""
 	Initializes controllers given list of (controller, goal) tuples involved in action.
 	"""
-	def initialize_controllers_and_goals(self, action_controllers, bullet_data_path, robot_jpos_getter, verbose=True, debug=False, suppress_output=False):
+	def initialize_controllers_and_goals(self, action_controllers, bullet_data_path, robot_jpos_getter, verbose=True, debug=False, suppress_output=False, update_arm_speed=False):
 		self.controllers = {}
 		for controller in action_controllers:
 			if controller[0] == "Baxter6DPoseController":
@@ -131,6 +131,7 @@ class ControlBasis:
 				)
 				self.controllers[controller[0]].set_goal(control_arm, goal_pos, goal_quat)
 				self.controllers[controller[0]].set_arm_speed(arm_speed)
+				self.controllers[controller[0]].update_arm_speed = update_arm_speed
 			elif controller[0] == "Baxter3DPositionController":
 				if len(controller[1]) == 2:
 					control_arm, goal_pos = controller[1]
