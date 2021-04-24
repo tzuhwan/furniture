@@ -57,12 +57,12 @@ class FurnitureBaxterControllerPlannerEnv(FurnitureBaxterEnv):
 		self.control_arm = config.control_arm
 		self.action_name = config.action
 
-		# approximate workspace boundaries
-		self.workspace_x = (0.31, 0.85)
-		self.workspace_y = (-0.70, 0.70)
-		self.workspace_z = (-0.11, 0.70)
+		# approximate workspace boundaries in base frame
+		self.workspace_x = (0.40, 0.85)
+		self.workspace_y = (-0.70, 0.70) # right is (lb, 0), left is (0, ub)
+		self.workspace_z = (-0.11, 0.50)
 
-		# approximate rotation bounadries in degrees(keep gripper facing down)
+		# approximate rotation bounadries in degrees (keep gripper facing down)
 		self.rotation_x = (-70, 70)
 		self.rotation_y = (-70, 70)
 		self.rotation_z = (-70, 70)
@@ -169,7 +169,7 @@ class FurnitureBaxterControllerPlannerEnv(FurnitureBaxterEnv):
 		self.cb.initialize_controllers(action_controllers,
 			bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
 			robot_jpos_getter=self._robot_jpos_getter,
-			suppress_output=True
+			verbose=False, debug=False, suppress_output=True
 		)
 
 		# get possible compositions
@@ -300,7 +300,7 @@ class FurnitureBaxterControllerPlannerEnv(FurnitureBaxterEnv):
 		self.cb.initialize_controllers(action_controllers,
 			bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
 			robot_jpos_getter=self._robot_jpos_getter,
-			suppress_output=False
+			verbose=False, debug=False, suppress_output=False
 		)
 
 		# get possible compositions
@@ -361,12 +361,15 @@ class FurnitureBaxterControllerPlannerEnv(FurnitureBaxterEnv):
 			)
 		print("***** COMPOSITIONS, PROBABILITIES, AND ITERATIONS *****")
 		for c, p, i in compositions_probabilities_iterations:
-			print("controller %s, probability of success %f, iterations %d"
+			print("controller %s, probability of success %f, iterations %f"
 				% (self.cb.multiobjective_controller_string(c), p, i)
 			)
 			if self.debug:
 				print("probabilities for each sample: ", composition_sample_probs[c])
 				print("iterations for each sample: ", composition_sample_iters[c])
+
+		# write to file
+		self.cb.write_walkout_samples_to_file(self.action_name, compositions_probabilities_iterations, self.num_samples, update=True, save_previous_info=True, file_name="composition_predictions.txt")
 
 		# get compositions that achieve max probability and fewest iterations
 		compositions = [c for c, p, i in compositions_probabilities_iterations if (p >= max_prob)]
@@ -398,16 +401,19 @@ class FurnitureBaxterControllerPlannerEnv(FurnitureBaxterEnv):
 		for c in self.cb.controllers.keys():
 			random_goal_state = self.random_controller_goal(c, self.cb.controllers[c])
 
-		# compute initial distance from goal
-		init_potential, _ = self.cb.compute_multiobjective_potentials(controllers)
+		# reset controller potentials and counter
+		self.cb.initialize_potential_dicts()
 
-		# compute multi-objective potential and check for controller progress
-		pot, progress = self.cb.compute_multiobjective_potentials(controllers)
+		# compute initial multi-objective potential and check for controller progress
+		init_potential, _ = self.cb.compute_multiobjective_potentials(controllers)
+		progress = True
 
 		# run controller
-		while progress and (not objective_met) and (num_iters < self.num_walkout_iters):
+		while (not objective_met) and (num_iters < self.num_walkout_iters):
 			# set flag so unity will update
 			# self._unity_updated = False # TODO do not render walkouts for better sim behavior
+			# compute multi-objective potential and check for controller progress
+			_, progress = self.cb.compute_multiobjective_potentials(controllers)
 			# compute controller update
 			velocities, objective_met = self.cb.compute_multiobjective_controller_update(controllers)
 			num_iters += 1
@@ -479,30 +485,26 @@ class FurnitureBaxterControllerPlannerEnv(FurnitureBaxterEnv):
 		# compute random goal for controller type
 		if controller_name == "Baxter6DPoseController":
 			rand_xpos = random.uniform(self.workspace_x[0], self.workspace_x[1])
-			rand_ypos = random.uniform(self.workspace_y[0], self.workspace_y[1])
+			if self.control_arm == "right":
+				rand_ypos = random.uniform(self.workspace_y[0], 0)
+			else: # self.control_arm == "left"
+				rand_ypos = random.uniform(0, self.workspace_y[1])
 			rand_zpos = random.uniform(self.workspace_z[0], self.workspace_z[1])
-			rand_pos_unity = [rand_xpos, rand_ypos, rand_zpos]
+			rand_pos = [rand_xpos, rand_ypos, rand_zpos]
 			rand_xrot = random.uniform(self.left_init_euler[0]-self.rotation_x[0], self.left_init_euler[0]-self.rotation_x[1])
 			rand_yrot = random.uniform(self.left_init_euler[1]-self.rotation_y[0], self.left_init_euler[1]-self.rotation_y[1])
 			rand_zrot = random.uniform(self.left_init_euler[2]-self.rotation_z[0], self.left_init_euler[2]-self.rotation_z[1])
 			rand_quat = T.euler_to_quat([rand_xrot, rand_yrot, rand_zrot])
-			rand_pos, _ = T.mat2pose(
-				self.pose_in_base_from_pose_in_unity(
-					T.pose2mat((rand_pos_unity, T.euler_to_quat([0, 0, 0])))
-				)
-			)
 			controller.set_goal(self.control_arm, rand_pos, rand_quat)
 			return (rand_pos, rand_quat)
 		elif controller_name == "Baxter3DPositionController":
 			rand_xpos = random.uniform(self.workspace_x[0], self.workspace_x[1])
-			rand_ypos = random.uniform(self.workspace_y[0], self.workspace_y[1])
+			if self.control_arm == "right":
+				rand_ypos = random.uniform(self.workspace_y[0], 0)
+			else: # self.control_arm == "left"
+				rand_ypos = random.uniform(0, self.workspace_y[1])
 			rand_zpos = random.uniform(self.workspace_z[0], self.workspace_z[1])
-			rand_pos_unity = [rand_xpos, rand_ypos, rand_zpos]
-			rand_pos, _ = T.mat2pose(
-				self.pose_in_base_from_pose_in_unity(
-					T.pose2mat((rand_pos_unity, T.euler_to_quat([0, 0, 0])))
-				)
-			)
+			rand_pos = [rand_xpos, rand_ypos, rand_zpos]
 			controller.set_goal(self.control_arm, rand_pos)
 			return rand_pos
 		elif controller_name == "BaxterRotationController":
@@ -513,14 +515,12 @@ class FurnitureBaxterControllerPlannerEnv(FurnitureBaxterEnv):
 			controller.set_goal(self.control_arm, rand_quat)
 		elif controller_name == "BaxterAlignmentController":
 			rand_axpos = random.uniform(self.workspace_x[0], self.workspace_x[1])
-			rand_aypos = random.uniform(self.workspace_y[0], self.workspace_y[1])
+			if self.control_arm == "right":
+				rand_aypos = random.uniform(self.workspace_y[0], 0)
+			else: # self.control_arm == "left"
+				rand_aypos = random.uniform(0, self.workspace_y[1])
 			rand_azpos = random.uniform(self.workspace_z[0], self.workspace_z[1])
-			rand_apos_unity = [rand_axpos, rand_aypos, rand_azpos]
-			rand_apos, _ = T.mat2pose(
-				self.pose_in_base_from_pose_in_unity(
-					T.pose2mat((rand_apos_unity, T.euler_to_quat([0, 0, 0])))
-				)
-			)
+			rand_apos = [rand_axpos, rand_aypos, rand_azpos]
 			controller.set_goal(self.control_arm, "+Z", rand_apos)
 			return ("+Z", rand_apos)
 		elif controller_name == "BaxterScrewController":

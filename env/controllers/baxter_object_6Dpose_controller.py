@@ -7,6 +7,7 @@ Run `pip install pybullet==1.9.5`.
 """
 
 import os
+import math
 import numpy as np
 from pyquaternion import Quaternion
 
@@ -24,62 +25,38 @@ from env.controllers import BaxterIKController
 6D pose controller for objects being manipulated by the Baxter robot, using Pybullet
 and the urdf description files.
 """
-class BaxterObject6DPoseController(BaxterIKController):
+class BaxterObject6DPoseController(BaxterIKController): # BaxterAssemblyController
 
 	"""
 	Constructor.
 	@param bullet_data_path, a string representing the base path to bullet data
 	@param robot_jpos_getter, a function that returns the joint positions of
 		the robot to be controlled as a numpy array
+	@param objects in scene, list of objects in scene
 	@param verbose, a boolean that indicates how much output gets printed during controller execution
 	@param debug, a boolean that indicates whether to print out pose information for end-effectors
+	@param suppress_output, a boolean that indicates whether to suppress all output from controller
+	@param potential_threshold, a float that indicates when controller is considered converged
 
 	Inherited from Controller base class.
 	"""
-	def __init__(self, bullet_data_path, robot_jpos_getter, objects_in_scene, verbose=True, debug=False):
+	def __init__(self, bullet_data_path, robot_jpos_getter, objects_in_scene, verbose=True, debug=False, suppress_output=False, potential_threshold=0.003):
 		print("BaxterObject6DPoseController: Initializing Object 6DPose Controller")
 
 		# initialize super class
-		super().__init__(bullet_data_path, robot_jpos_getter)
-
-		# set debug and verbose flags
-		self.verbose = verbose
-		self.debug = debug
+		super().__init__(bullet_data_path, robot_jpos_getter, verbose, debug, suppress_output, potential_threshold)
 
 		# set list of objects in scene
 		self.object_names = objects_in_scene
-
-		# max potential
-		self.max_potential = 100
-
-		# potential threshold (potential less than this means no update will be performed)
-		self.potential_threshold = 0.003
-
-		# controller objective met flag
-		self.objective_met = False
 
 		# set move and rotate speed, for scaling motions; these are equivalent to controller gains
 		self.move_speed = 0.025 # TODO
 		self.rotate_speed = 0.03 # TODO
 
-		# set arm speed, which controls how fast the arm performs the commands
-		self.arm_step = 2
-
-		# initialize control arm and control object
-		self.control_arm = ""
+		# initialize control object
 		self.object_name = ""
 
-		# initialize current pose
-		self.set_current_pose()
-
-	"""
-    Syncs the internal Pybullet robot state to the joint positions of the
-    robot being controlled.
-
-    Inherited from Controller base class.
-    """
-	def sync_state(self):
-		super().sync_state()
+	# TODO TODO TODO OUTDATED BELOW HERE.  Needs to be integrated into hierarchy.
 
 	"""
 	Returns joint velocities to control the robot after the target end effector
