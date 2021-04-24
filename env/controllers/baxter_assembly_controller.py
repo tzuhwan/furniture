@@ -126,7 +126,7 @@ class BaxterAssemblyController(BaxterIKController):
 
 		# check for joint limits
 		self.limit_reached = self.check_joint_limits()
-		if limit_reached:
+		if self.limit_reached:
 			if not self.suppress_output:
 				print("%s: Joint limit reached, controller behavior will not work well." % self.controller_name())
 
