@@ -264,9 +264,24 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         res = self.random_place_objects()
         if not res:
             return
-        
-        for action in self._actions:
+
+        while True:
+            self.need_regrasp = False
+            action = self._actions[0]
             success = self.single_action(config, action)
+            if success:
+                previous_action = action.copy()
+                self._actions.remove(action)
+            else:
+                if self.need_regrasp:
+                    self._actions.insert(0, previous_action)
+                else:
+                    print('The system is finished')
+                    break
+            if len(self._actions) == 0:
+                break
+        # for i, action in enumerate(self._actions):
+        #     success = self.single_action(config, action)
             # self.action_times = 0
             # while self.action_times < 100:
             #     print("trying action ", action)
@@ -288,7 +303,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
     def single_action(self, config, action):
         self.tried_pose = []
         self.action_times = 0
-        success = False
+        success = 0
         tried_pose_threshold = 0.01
         while not success:
             left_hand_pose_mat = self.pose_in_base_from_name('left_gripper_base')
@@ -485,9 +500,14 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 self._action_sequence.append(("open-gripper", action[1]))
                 self._action_sequence.append(
                     ("Baxter6DPoseController", (action[1], target_pose[0], target_pose[1])))
+            pervious_action_times = self.action_times
             success = self.one_action(self._action_sequence)
             self.action_times+=1
             print('{}: {} times'.format(action[0], self.action_times))
+            if action[0] in ['connect', 'screw'] and pervious_action_times == self.action_times:
+                self.need_regrasp = True
+                print('The object fall down from the gripper. We need to regrasp it.')
+                break
             if success or self.action_times>=20:
                 if success:
                     print('Finish the step:',action[0])
@@ -629,7 +649,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 # set flag so unity will update
                 self._unity_updated = False
                 # perform connection
-                self.perform_connection()
+                success = self.perform_connection()
                 # render
                 self.vr.add(self.render('rgb_array'))
 
@@ -699,9 +719,10 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                         print('try connect')
                     result = self._try_connect(self.sim.model.body_id2name(body_id))
                     print("connection result: ", result)
-                    if result:
-                        return
-                    break
+                    return result
+                    # if result:
+                    #     return
+                    # break
 
     """
     Computes the distances between current end-effector pose and possible part grasp poses.
