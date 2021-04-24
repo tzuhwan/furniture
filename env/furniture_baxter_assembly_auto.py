@@ -81,8 +81,8 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         
         # fixed offsets related to grasping
         self.hold_offset = 0.03  # make sure the gripper covers the object with some distance and object won't slip out
-        self.grasp_offset = 0.05 + self.hold_offset
-        self.lift_offset = 0.05 # 0.01 is even hard for some cases
+        self.grasp_offset = 0.08
+        self.lift_offset = 0.1 # 0.01 is even hard for some cases
         self.x_range = { # left-right shift from workspace center (- robot right, viewer left)
             'chair_agne_0007': [-0.2, 0.2],
             'chair_bernhard_0146': [-0.2, 0.2],
@@ -174,8 +174,11 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
     """
     def Rotation_interpolation(self, pose_mat, axis = 'x', angle = 360, num_pts = 12):
         d_angle = angle/num_pts
-        r = np.eye(4)
-        r[:3, :3] = R.from_euler(axis, d_angle, degrees=True).as_dcm()
+        if pose_mat.shape == (4,4):
+            r = np.eye(4)
+            r[:3, :3] = R.from_euler(axis, d_angle, degrees=True).as_dcm()
+        else:
+            r = R.from_euler(axis, d_angle, degrees=True).as_dcm()
         inter_pose = []
         pose = pose_mat.copy()
         for _ in range(num_pts):
@@ -283,12 +286,13 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         return
 
     def single_action(self, config, action):
-        left_hand_pose_mat = self.pose_in_base_from_name('left_gripper_base')
-        right_hand_pose_mat = self.pose_in_base_from_name('right_gripper_base')
         self.tried_pose = []
         self.action_times = 0
         success = False
+        tried_pose_threshold = 0.01
         while not success:
+            left_hand_pose_mat = self.pose_in_base_from_name('left_gripper_base')
+            right_hand_pose_mat = self.pose_in_base_from_name('right_gripper_base')
             self._action_sequence = []
             if action[0] == 'grasp':
                 self.gripper_grabs = [-1, -1]
@@ -332,7 +336,6 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 # print("poses and grasps: ")
                 # for i in range(len(dists_poses)):
                 #     print("pose %d, distance %f" % (i, dists_poses[i][0]))
-                tried_pose_threshold = 0.01
                 for dist, pregrasp_pose_mat, grasp_pose_mat in dists_poses:
                     find_pose = True
                     # check whether the current grasp pose is tried or not
@@ -355,11 +358,12 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 post_grasp_pose = T.mat2pose(post_grasp_pose_mat)
                 if self.action_times == 0:
                     self._action_sequence.append(("Baxter6DPoseController", (action[1], default_pose[0], default_pose[1], 1e-3)))
+                self._action_sequence.append(("open-gripper", action[1]))
                 self._action_sequence.append(("Baxter6DPoseController", (action[1], pre_grasp_pose[0] + [0, 0, 0.15], pre_grasp_pose[1])))
                 self._action_sequence.append(("Baxter6DPoseController", (action[1], pre_grasp_pose[0], pre_grasp_pose[1])))
                 self._action_sequence.append(("Baxter6DPoseController", (action[1], grasp_pose[0], grasp_pose[1])))
                 self._action_sequence.append(("close-gripper", action[1]))
-                self._action_sequence.append( ("Baxter6DPoseController", (action[1], post_grasp_pose[0], post_grasp_pose[1])))
+                self._action_sequence.append( ("Baxter6DPoseController", (action[1], post_grasp_pose[0], post_grasp_pose[1], 1e-3)))
 
                 # TODO TODO TODO uncomment later; Xiaotong's original grasp selection
                 # for obj_grasp_mat in ws_grasp_pose_mat:
@@ -439,18 +443,37 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 # new_pos, new_quat = T.transform_to_target_quat(moving_site_qpos, self._get_qpos(m_body_name), target_site_qpos[3:])
                 translation = target_site_qpos_mat[:3, 3] - moving_site_qpos_mat[:3, 3]
                 rotation = (target_site_qpos_mat[:3, :3]).transpose().dot(moving_site_qpos_mat[:3, :3])
+                appended_rotation = self.Rotation_interpolation(rotation)
                 left_distance = np.linalg.norm(np.array(moving_site_qpos_mat)[:3, 3]-left_hand_pose_mat[:3, 3], axis=-1)
                 right_distance = np.linalg.norm(np.array(moving_site_qpos_mat)[:3, 3]-right_hand_pose_mat[:3, 3], axis=-1)
+                # TODO: A potiontial bug if the moving site is closer to the ungrasped hand
                 action[1] = 'left' if left_distance < right_distance else 'right'
                 hand_pose_mat = left_hand_pose_mat if action[1] == 'left' else right_hand_pose_mat
                 target_hand_pose_mat = hand_pose_mat.copy()
                 target_hand_pose_mat[:3, 3] += translation
                 # target_hand_pose_mat[:3,:3] = T.pose2mat((new_pos,new_quat))[:3, :3].dot(target_hand_pose_mat[:3,:3])
-                target_hand_pose_mat[:3, :3] = rotation.dot(target_hand_pose_mat[:3, :3])
-                pre_target_hand_pose_mat = target_hand_pose_mat.copy()
-                pre_target_hand_pose_mat[:3, -1] -= self.grasp_offset * pre_target_hand_pose_mat[:3, 2]
-                pre_target_hand_pose = T.mat2pose(pre_target_hand_pose_mat)
-                target_hand_pose = T.mat2pose(target_hand_pose_mat)
+                for rotation in appended_rotation:
+                    find_pose = True
+                    target_hand_pose_mat[:3, :3] = rotation.dot(hand_pose_mat[:3, :3])
+                    target_hand_pose = T.mat2pose(target_hand_pose_mat)
+                    for t_p in self.tried_pose:
+                        dist_pos = np.linalg.norm(target_hand_pose[0] - t_p[0])
+                        dist_quat = Quaternion.distance(Quaternion(target_hand_pose[1]), Quaternion(t_p[1]))
+                        dist_quat = min(dist_quat, math.pi - dist_quat)
+                        tried_pose_dist = dist_pos + dist_quat
+                        if tried_pose_dist < tried_pose_threshold:
+                            find_pose = False
+                    if find_pose:
+                        break
+                self.tried_pose.append(target_hand_pose)
+                # pre_target_hand_pose_mat = target_hand_pose_mat.copy()
+                # pre_target_hand_pose_mat[:3, -1] -= self.grasp_offset * pre_target_hand_pose_mat[:3, 2]
+                # pre_target_hand_pose = T.mat2pose(pre_target_hand_pose_mat)
+                pre_target_hand_pose = (target_hand_pose[0]+[0,0,self.lift_offset], target_hand_pose[1])
+                default_pose_mat = self.default_eef_mat[action[1]]
+                default_pose = T.mat2pose(default_pose_mat)
+                # if self.action_times == 0:
+                #     self._action_sequence.append(("Baxter6DPoseController", (action[1], default_pose[0], default_pose[1], 1e-3)))
                 self._action_sequence.append(
                     ("Baxter6DPoseController", (action[1], pre_target_hand_pose[0], pre_target_hand_pose[1])))
                 self._action_sequence.append(
@@ -504,7 +527,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                         verbose=False, potential_threshold = potential
                     )
                 self._controller.set_goal(control_arm, goal_pos, goal_quat)
-                self._controller.set_arm_speed(8)
+                self._controller.set_arm_speed(2)
                 run = "controller"
             elif action[0] == "Baxter3DPositionController":
                 control_arm, goal_pos, goal_quat = action[1]
@@ -582,10 +605,10 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     # render
                     self.vr.add(self.render('rgb_array'))
                     potentials[num_moving%20] = self._controller.potential()
-                    if np.std(potentials) <= 1e-4 or np.all(np.diff(potentials) > 0):
+                    if np.std(potentials) <= 1e-5 or np.all(np.diff(potentials) > 0):
                         success = False
                         print("********** no success because of potentials **********")
-                        if np.std(potentials) <= 1e-7:
+                        if np.std(potentials) <= 1e-5:
                             print("no movement")
                         else:
                             print("potentials increasing")

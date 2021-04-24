@@ -37,7 +37,7 @@ class Baxter6DPoseController(BaxterIKController):
 
 	Inherited from Controller base class.
 	"""
-	def __init__(self, bullet_data_path, robot_jpos_getter, verbose=True, debug=False, suppress_output=False, potential_threshold=3e-5):
+	def __init__(self, bullet_data_path, robot_jpos_getter, verbose=True, debug=False, suppress_output=False, potential_threshold=3e-4):
 		print("Baxter6DPoseController: Initializing 6DPose Controller")
 
 		# initialize super class
