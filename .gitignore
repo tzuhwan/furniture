@@ -1,10 +1,14 @@
+.vscode/*
+
 # Mac OS
 .DS_Store
+__MACOSX/*
 *~
 .python-version
 # Log
 checkpoint
 log
+unity-log/
 
 # Vim
 .*.s[a-w][a-z]
@@ -14,7 +18,7 @@ Session.vim
 *.csv
 *.ini
 *.npy
-test.mp4
+*.mp4
 *.zip
 *.hdf5
 *screenlog*

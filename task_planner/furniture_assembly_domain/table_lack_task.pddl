@@ -2,59 +2,59 @@
 	(:domain furniture-assembly)
 
 	(:objects
-		table-leg1 table-leg2 table-leg3 table-leg4 - table-leg
-		table-lack-top - table-top
-		table-leg1-base table-leg2-base table-leg3-base table-leg4-base - handle-part
-		table-leg1-screw table-leg2-screw table-leg3-screw table-leg4-screw - action-part
-		table-lack-top-hole1 table-lack-top-hole2 table-lack-top-hole3 table-lack-top-hole4 - tool-part
+		leg1 leg2 leg3 leg4 - table-leg
+		top - table-top
+		leg1-base leg2-base leg3-base leg4-base - handle-part
+		leg1-screw leg2-screw leg3-screw leg4-screw - action-part
+		top-hole1 top-hole2 top-hole3 top-hole4 - tool-part
 		robot-gripper - gripper
 	)
 
 	(:init
-		(on-floor table-leg1)
-		(on-floor table-leg2)
-		(on-floor table-leg3)
-		(on-floor table-leg4)
-		(on-floor table-lack-top)
+		(on-floor leg1)
+		(on-floor leg2)
+		(on-floor leg3)
+		(on-floor leg4)
+		(on-floor top)
 
-		(clear table-leg1)
-		(clear table-leg2)
-		(clear table-leg3)
-		(clear table-leg4)
+		(clear leg1)
+		(clear leg2)
+		(clear leg3)
+		(clear leg4)
 
 		(empty robot-gripper)
 
-		(part-of table-leg1-base table-leg1)
-		(part-of table-leg1-screw table-leg1)
-		(part-of table-leg2-base table-leg2)
-		(part-of table-leg2-screw table-leg2)
-		(part-of table-leg3-base table-leg3)
-		(part-of table-leg3-screw table-leg3)
-		(part-of table-leg4-base table-leg4)
-		(part-of table-leg4-screw table-leg4)
-		(part-of table-lack-top-hole1 table-lack-top)
-		(part-of table-lack-top-hole2 table-lack-top)
-		(part-of table-lack-top-hole3 table-lack-top)
-		(part-of table-lack-top-hole4 table-lack-top)
+		(part-of leg1-base leg1)
+		(part-of leg1-screw leg1)
+		(part-of leg2-base leg2)
+		(part-of leg2-screw leg2)
+		(part-of leg3-base leg3)
+		(part-of leg3-screw leg3)
+		(part-of leg4-base leg4)
+		(part-of leg4-screw leg4)
+		(part-of top-hole1 top)
+		(part-of top-hole2 top)
+		(part-of top-hole3 top)
+		(part-of top-hole4 top)
 
-		(affords-picking table-leg1-base)
-		(affords-picking table-leg2-base)
-		(affords-picking table-leg3-base)
-		(affords-picking table-leg4-base)
-		(affords-screwing table-leg1-screw)
-		(affords-screwing table-leg2-screw)
-		(affords-screwing table-leg3-screw)
-		(affords-screwing table-leg4-screw)
-		(affords-screwing-into table-leg1 table-lack-top-hole1 table-lack-top)
-		(affords-screwing-into table-leg2 table-lack-top-hole2 table-lack-top)
-		(affords-screwing-into table-leg3 table-lack-top-hole3 table-lack-top)
-		(affords-screwing-into table-leg4 table-lack-top-hole4 table-lack-top)
+		(affords-picking leg1-base)
+		(affords-picking leg2-base)
+		(affords-picking leg3-base)
+		(affords-picking leg4-base)
+		(affords-screwing leg1-screw)
+		(affords-screwing leg2-screw)
+		(affords-screwing leg3-screw)
+		(affords-screwing leg4-screw)
+		(affords-screwing-into leg1 top-hole1 top)
+		(affords-screwing-into leg2 top-hole2 top)
+		(affords-screwing-into leg3 top-hole3 top)
+		(affords-screwing-into leg4 top-hole4 top)
 	)
 
-	(:goal (and (screwed-into table-leg1 table-lack-top)
-				(screwed-into table-leg2 table-lack-top)
-				(screwed-into table-leg3 table-lack-top)
-				(screwed-into table-leg4 table-lack-top)
+	(:goal (and (screwed-into leg1 top)
+				(screwed-into leg2 top)
+				(screwed-into leg3 top)
+				(screwed-into leg4 top)
 		   	)
 	)
 )
