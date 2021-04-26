@@ -193,24 +193,38 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 while not objective_met:
                     # set flag so unity will update
                     self._unity_updated = False
+                    # compute potential
+                    pot, progress = self.cb.compute_singleobjective_controller_potential(run)
                     # compute controller update
                     velocities, objective_met = self.cb.compute_singleobjective_controller_update(run)
                     # perform controller command
                     self.perform_command(velocities, self.gripper_grabs, True, False, controller_name=run)
                     # render
                     self.vr.add(self.render('rgb_array'))
+                    # check for progress
+                    if not progress:
+                        success = False
+                        print("********** no success because of potentials **********")
+                        break
             elif run == "multiobjective-controller":
                 objective_met = False
                 # run controller
                 while not objective_met:
                     # set flag so unity will update
                     self._unity_updated = False
+                    # compute potential
+                    pot, progress = self.cb.compute_multiobjective_controller_potential(self.composition)
                     # compute controller update
                     velocities, objective_met = self.cb.compute_multiobjective_controller_update(self.composition)
                     # perform controller command
                     self.perform_multiobjective_command(velocities, self.gripper_grabs, self.composition)
                     # render
                     self.vr.add(self.render('rgb_array'))
+                    # check for progress
+                    if not progress:
+                        success = False
+                        print("********** no success because of potentials **********")
+                        break
             elif run == "gripper":
                 # set flag so unity will update
                 self._unity_updated = False
@@ -286,6 +300,31 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         return
 
     """
+    Performs the given multi-objective controller command.
+    Copied from part of _step_continuous() function in furniture.py
+
+    @param velocities, the change in configuration induced by the multi-objective controller
+    @param gripper_grabs, flags indicating whether [right, left] grippers have closed
+        where 1 means gripper is closed and -1 means gripper is open
+    @param composition, the list of controllers indicating the order of the composition
+    """
+    def perform_multiobjective_command(self, velocities, gripper_grabs, composition):
+        # set up low action
+        low_action = np.concatenate([velocities, gripper_grabs])
+
+        # keep trying to reach the target in a closed-loop
+        ctrl = self._setup_action(low_action)
+        for i in range(self._action_repeat):
+                self._do_simulation(ctrl)
+
+                if i + 1 < self._action_repeat:
+                    velocities, _ = self.cb.compute_multiobjective_controller_update(composition)
+                    low_action = np.concatenate([velocities, gripper_grabs])
+                    ctrl = self._setup_action(low_action)
+
+        return
+
+    """
     Perform connection between two parts.
     Copied from part of _step_continuous() function in furniture.py
     """
@@ -353,31 +392,6 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         # pose in unity world = pose in base * base in unity world
         pose_in_world = T.pose_in_A_to_pose_in_B(pose_in_base, base_pose_in_world)
         return pose_in_world
-
-    """
-    Performs the given multi-objective controller command.
-    Copied from part of _step_continuous() function in furniture.py
-
-    @param velocities, the change in configuration induced by the multi-objective controller
-    @param gripper_grabs, flags indicating whether [right, left] grippers have closed
-        where 1 means gripper is closed and -1 means gripper is open
-    @param composition, the list of controllers indicating the order of the composition
-    """
-    def perform_multiobjective_command(self, velocities, gripper_grabs, composition):
-        # set up low action
-        low_action = np.concatenate([velocities, gripper_grabs])
-
-        # keep trying to reach the target in a closed-loop
-        ctrl = self._setup_action(low_action)
-        for i in range(self._action_repeat):
-                self._do_simulation(ctrl)
-
-                if i + 1 < self._action_repeat:
-                    velocities, _ = self.cb.compute_multiobjective_controller_update(composition)
-                    low_action = np.concatenate([velocities, gripper_grabs])
-                    ctrl = self._setup_action(low_action)
-
-        return
 
     ##############################################################
     ### WALKOUTS FOR DETERMINING CONTROLLER COMPOSITION ONLINE ###

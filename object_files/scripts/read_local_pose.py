@@ -83,7 +83,7 @@ class PoseReader(object):
             '7_swivel_chair': {
                 '1_chair_base': [[10], ['base_grasp_pose']], # n_grasp_pose
                 '2_chair_column': [[12, 2], ['column_grasp_pose', 'column_helper_pose']], # for objects with helper_poses, [n_grasp_pose, n_helper_pose]
-                '3_chair_seat': [[14], ['seat_grasp_pose']]
+                '3_chair_seat': [[10], ['seat_grasp_pose']]
             },
             '8_table_klubbo': {
                 '1_table_leg1': [[8], ['klubbo_table_leg1_grasp_pose']],

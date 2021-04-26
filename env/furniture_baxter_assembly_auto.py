@@ -20,6 +20,7 @@ from env.controllers import Baxter3DPositionController
 from env.controllers import BaxterRotationController
 from env.controllers import BaxterAlignmentController
 from env.controllers import BaxterScrewController
+from env.controller_planner import ControlBasis
 from itertools import combinations
 from scipy.spatial.transform import Rotation as R
 import env.transform_utils as T
@@ -47,8 +48,12 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         # initialize FurnitureBaxterEnv
         super().__init__(config)
 
-        # set debug flag
+        # set vebose and debug flag
+        self.verbose = config.verbose
         self.debug = config.debug
+
+        # initialize control basis
+        self.cb = ControlBasis()
 
         # set furniture name
         self._furniture_name = config.furniture_name
@@ -112,6 +117,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         # dictionary of furniture names to list of parts that have bounded positions for reachability (usually towards center of workspace)
         # TODO currently not used since x_range and y_range (set above) should keep table tops within reachable workspace even if not in center
         self.position_bounds = {
+            'swivel_chair_0700': ['3_chair_seat'],
             'table_klubbo_0743': ['5_table_top'],
             'table_lack_0825': ['5_table_top']
         }
@@ -120,6 +126,10 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
             'table_lack_0825': {
                 '5_table_top': [(np.pi / 180) * -10, (np.pi / 180) * 10]
             }
+        }
+        # dictionary of furniture names to list of parts that can be grasped anywhere along a specified plane
+        self.allow_grasp_interpolation = {
+            'swivel_chair_0700': ['2_chair_column']
         }
 
     """
@@ -236,8 +246,10 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         right_gripper_pose = (self.pose_in_base_from_name('r_gripper_l_finger_tip') + self.pose_in_base_from_name('r_gripper_r_finger_tip')) / 2  # orientations are the same
         self.right_gripper_base2eef_mat = T.pose_inv(right_gripper_pose).dot(self.default_eef_mat['right'])
         self.side_eef_mat = copy.deepcopy(self.default_eef_mat)
-        self.side_eef_mat['left'][1, 3] += 0.15
-        self.side_eef_mat['right'][1, 3] -= 0.15  # move arm further in base y direction to clear the space
+        self.side_eef_mat['left'][1, 3] += 0.4#0.15
+        self.side_eef_mat['left'][0, 3] -= 0.15
+        self.side_eef_mat['right'][1, 3] -= 0.4#0.15 # move arm further in base y direction to clear the space
+        self.side_eef_mat['right'][0, 3] -= 0.15
 
         base_pos_in_world = self.sim.data.get_body_xpos("base")
         base_rot_in_world = self.sim.data.get_body_xmat("base").reshape((3, 3))
@@ -249,12 +261,12 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         
         if config.furniture_name == 'swivel_chair_0700': # swivel_chair:
             self._actions = [
-                # ['side', 'left'],    # move arm to the side to clear the place
-                ['grasp', 'right', '2_chair_column'],
-                ['connect', 'right', 'column-base,conn_site1', 'base-column,conn_site1'],  # assumption: has grasped first part
-                ['side', 'right'],
-                ['grasp', 'left', '3_chair_seat'],
-                ['connect', 'left', 'seat-column,conn_site2', 'column-seat,conn_site2'],
+                ['side', 'right'],    # move arm to the side to clear the place
+                ['grasp', 'left', '2_chair_column'],
+                ['connect', 'left', 'column-base,conn_site1', 'base-column,conn_site1'],  # assumption: has grasped first part
+                ['side', 'left'],
+                ['grasp', 'right', '3_chair_seat'],
+                ['connect', 'right', 'seat-column,conn_site2', 'column-seat,conn_site2'],
             ]
 
         from util.video_recorder import VideoRecorder
@@ -268,6 +280,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         while True:
             self.need_regrasp = False
             action = self._actions[0]
+            print('trying action ', action)
             success = self.single_action(config, action)
             if success:
                 previous_action = action.copy()
@@ -304,7 +317,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         self.tried_pose = []
         self.action_times = 0
         success = 0
-        tried_pose_threshold = 0.01
+        self.tried_pose_threshold = 0.01
         while not success:
             left_hand_pose_mat = self.pose_in_base_from_name('left_gripper_base')
             right_hand_pose_mat = self.pose_in_base_from_name('right_gripper_base')
@@ -326,29 +339,29 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 num_grasps = self.num_grasp_poses[self.object][part]['grasp_poses']
                 local_grasp_pose_mat = [T.pose2mat((pose[:3], pose[3:])) for pose in local_grasp_pose[:num_grasps]]
                 final_local_grasp_pose_mats = []
-                for l_p in local_grasp_pose_mat:
-                    final_local_grasp_pose_mats += self.Rotation_interpolation(l_p)
+                # if part supports rotation interpolation of grasp poses, then get additional grasp poses
+                if (self._furniture_name in self.allow_grasp_interpolation.keys()) and (part in self.allow_grasp_interpolation[self._furniture_name]):
+                    for l_p in local_grasp_pose_mat:
+                        final_local_grasp_pose_mats += self.Rotation_interpolation(l_p)
+                else:
+                    final_local_grasp_pose_mats = local_grasp_pose_mat
                 ws_grasp_pose_mat = [T.pose_in_A_to_pose_in_B(grasp_pose_mat0, part_pose_mat) for grasp_pose_mat0 in final_local_grasp_pose_mats]
                 found_downwards_grasppose = False
 
-                # TODO TODO TODO check computation of pregarsp poses; Emily copied this from down below
                 obj2eef_mat = self.left_gripper_base2eef_mat if action[1] == 'left' else self.right_gripper_base2eef_mat
                 # initialize list of pregrasp, grasp pose tuples
                 pregrasp_grasp_pose_mats = []
                 # compute pregrasp pose for each possible grasp pose
                 for obj_grasp_mat in ws_grasp_pose_mat:
-                    # copied from down below; check this?
                     grasp_pose_mat = obj_grasp_mat.dot(obj2eef_mat)
                     pre_eef_grasp_pose_mat = grasp_pose_mat.copy()
-                    # TODO isn't grasp pose already in base frame? what is this transformation doing?
-                    #  KZ: The position transfered to the controller is used for the 'gripper base'. We need a transformation betwwen the end-effector and 'gripper base'.
-                    grasp_pose_mat[:3, -1] += self.hold_offset * grasp_pose_mat[:3, 2] # TODO does this account for not-downward grasps?  how do we determine what dimension to apply offset to?
+                    grasp_pose_mat[:3, -1] += self.hold_offset * grasp_pose_mat[:3, 2]
                     # grasp_pose = T.mat2pose(grasp_pose_mat)
                     pre_eef_grasp_pose_mat[:3, -1] -= self.grasp_offset * pre_eef_grasp_pose_mat[:3, 2]
                     pregrasp_grasp_pose_mats.append((pre_eef_grasp_pose_mat, grasp_pose_mat))
 
                 dists_poses = self.compute_pregrasp_pose_distances(pregrasp_grasp_pose_mats, action[1])
-                # print("poses and grasps: ")
+                # print("poses and dists: ")
                 # for i in range(len(dists_poses)):
                 #     print("pose %d, distance %f" % (i, dists_poses[i][0]))
                 for dist, pregrasp_pose_mat, grasp_pose_mat in dists_poses:
@@ -360,7 +373,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                         dist_quat = Quaternion.distance(Quaternion(grasp_pose[1]), Quaternion(t_p[1]))
                         dist_quat = min(dist_quat, math.pi - dist_quat)
                         tried_pose_dist = dist_pos + dist_quat
-                        if tried_pose_dist < tried_pose_threshold:
+                        if tried_pose_dist < self.tried_pose_threshold:
                             find_pose = False
                     if find_pose:
                         break
@@ -380,7 +393,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 self._action_sequence.append(("close-gripper", action[1]))
                 self._action_sequence.append( ("Baxter6DPoseController", (action[1], post_grasp_pose[0], post_grasp_pose[1], 1e-3)))
 
-                # TODO TODO TODO uncomment later; Xiaotong's original grasp selection
+                # TODO uncomment later; Xiaotong's original grasp selection
                 # for obj_grasp_mat in ws_grasp_pose_mat:
                 #     # if obj_grasp_mat[2, 3] < 0:  # drop poses that are too low
                 #     #     continue
@@ -391,7 +404,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 #                     continue
                 #         found_downwards_grasppose = True
                 #         break
-                # TODO TODO TODO uncomment later; Xiaotong's code for using helper poses
+                # TODO uncomment later; Xiaotong's code for using helper poses
                 # if not found_downwards_grasppose:
                 #     # using helper pose
                 #     if config.furniture_name == 'swivel_chair_0700': # swivel chair
@@ -441,71 +454,36 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 # self._action_sequence.append(("close-gripper", action[1]))
                 # self._action_sequence.append(("Baxter6DPoseController", (action[1], post_grasp_pose[0], post_grasp_pose[1])))
             elif action[0] in ['connect', 'screw']:  # todo: develop rotation controller for screw motion
-                m_site = action[2]
-                t_site = action[3]
-                target_site_qpos = self._site_xpos_xquat(t_site)
-                moving_site_qpos = self._site_xpos_xquat(m_site)
-
-                target_site_qpos_mat = T.pose_in_A_to_pose_in_B(T.pose2mat((target_site_qpos[:3], target_site_qpos[3:])),
-                                                                self.world_pose_in_base)
-                moving_site_qpos_mat = T.pose_in_A_to_pose_in_B(T.pose2mat((moving_site_qpos[:3], moving_site_qpos[3:])),
-                                                                self.world_pose_in_base)
-
-                # translation = target_site_qpos[:3] - moving_site_qpos[:3]
-                # m_site_id = self.sim.model.site_name2id(m_site)
-                # m_body_id = self.sim.model.site_bodyid[m_site_id]
-                # m_body_name = self.sim.model.body_names[m_body_id]
-                # new_pos, new_quat = T.transform_to_target_quat(moving_site_qpos, self._get_qpos(m_body_name), target_site_qpos[3:])
-                translation = target_site_qpos_mat[:3, 3] - moving_site_qpos_mat[:3, 3]
-                rotation = (moving_site_qpos_mat[:3, :3]).transpose().dot(target_site_qpos_mat[:3, :3])
-                # rotation = (target_site_qpos_mat[:3, :3]).transpose().dot(moving_site_qpos_mat[:3, :3])
-                appended_rotation = self.Rotation_interpolation(rotation)
-                left_distance = np.linalg.norm(np.array(moving_site_qpos_mat)[:3, 3]-left_hand_pose_mat[:3, 3], axis=-1)
-                right_distance = np.linalg.norm(np.array(moving_site_qpos_mat)[:3, 3]-right_hand_pose_mat[:3, 3], axis=-1)
-                # TODO: A potiontial bug if the moving site is closer to the ungrasped hand
-                action[1] = 'left' if left_distance < right_distance else 'right'
-                hand_pose_mat = left_hand_pose_mat if action[1] == 'left' else right_hand_pose_mat
-                target_hand_pose_mat = hand_pose_mat.copy()
-                target_hand_pose_mat[:3, 3] += translation
-                # target_hand_pose_mat[:3,:3] = T.pose2mat((new_pos,new_quat))[:3, :3].dot(target_hand_pose_mat[:3,:3])
-                for rotation in appended_rotation:
-                    find_pose = True
-                    target_hand_pose_mat[:3, :3] = rotation.dot(hand_pose_mat[:3, :3])
-                    target_hand_pose = T.mat2pose(target_hand_pose_mat)
-                    for t_p in self.tried_pose:
-                        dist_pos = np.linalg.norm(target_hand_pose[0] - t_p[0])
-                        dist_quat = Quaternion.distance(Quaternion(target_hand_pose[1]), Quaternion(t_p[1]))
-                        dist_quat = min(dist_quat, math.pi - dist_quat)
-                        tried_pose_dist = dist_pos + dist_quat
-                        if tried_pose_dist < tried_pose_threshold:
-                            find_pose = False
-                    if find_pose:
-                        break
+                control_arm, pre_pre_target_hand_pose, pre_target_hand_pose, target_hand_pose = self.compute_connect_target_pose(action[2], action[3])
                 self.tried_pose.append(target_hand_pose)
-                # pre_target_hand_pose_mat = target_hand_pose_mat.copy()
-                # pre_target_hand_pose_mat[:3, -1] -= self.grasp_offset * pre_target_hand_pose_mat[:3, 2]
-                # pre_target_hand_pose = T.mat2pose(pre_target_hand_pose_mat)
-                pre_target_hand_pose = (target_hand_pose[0]+[0,0,self.lift_offset], target_hand_pose[1])
-                default_pose_mat = self.default_eef_mat[action[1]]
+                
+                default_pose_mat = self.default_eef_mat[control_arm]
                 default_pose = T.mat2pose(default_pose_mat)
+                target_pose_mat = self.side_eef_mat[control_arm]
+                target_pose = T.mat2pose(target_pose_mat)
                 # if self.action_times == 0:
-                #     self._action_sequence.append(("Baxter6DPoseController", (action[1], default_pose[0], default_pose[1], 1e-3)))
+                #     self._action_sequence.append(("Baxter6DPoseController", (control_arm, default_pose[0], default_pose[1], 1e-3)))
+                # self._action_sequence.append(
+                #     ("pre-pre-connect-pose", action[2], action[3], "Baxter6DPoseController", (control_arm, pre_pre_target_hand_pose[0], pre_pre_target_hand_pose[1], 0.005)))
                 self._action_sequence.append(
-                    ("Baxter6DPoseController", (action[1], pre_target_hand_pose[0], pre_target_hand_pose[1])))
+                    ("pre-connect-pose", action[2], action[3], "Baxter6DPoseController", (control_arm, pre_target_hand_pose[0], pre_target_hand_pose[1], 0.005)))
                 self._action_sequence.append(
-                    ("Baxter6DPoseController", (action[1], target_hand_pose[0], target_hand_pose[1])))
+                    ("connect-pose", action[2], action[3], "Baxter6DPoseController", (control_arm, target_hand_pose[0], target_hand_pose[1])))
                 self._action_sequence.append(("connect", " "))
+                self._action_sequence.append(("open-gripper", control_arm))
+                self._action_sequence.append(
+                    ("Baxter6DPoseController", (control_arm, target_pose[0], target_pose[1])))
             elif action[0] == 'side':
                 target_pose_mat = self.side_eef_mat[action[1]]
                 target_pose = T.mat2pose(target_pose_mat)
                 self._action_sequence.append(("open-gripper", action[1]))
                 self._action_sequence.append(
                     ("Baxter6DPoseController", (action[1], target_pose[0], target_pose[1])))
-            pervious_action_times = self.action_times
+            previous_action_times = self.action_times
             success = self.one_action(self._action_sequence)
             self.action_times+=1
             print('{}: {} times'.format(action[0], self.action_times))
-            if action[0] in ['connect', 'screw'] and pervious_action_times == self.action_times:
+            if action[0] in ['connect', 'screw'] and previous_action_times == self.action_times:
                 self.need_regrasp = True
                 print('The object fall down from the gripper. We need to regrasp it.')
                 break
@@ -523,60 +501,44 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         # start action sequence
         print("FurnitureBaxterAssemblyEnv: Starting action sequence")
         success = True
+        i = 0
         # perform action sequence
-        for i in range(len(_action_sequence)):
+        while i < len(_action_sequence): #for i in range(len(_action_sequence)):
             print("FurnitureBaxterAssemblyEnv: Starting action %d of %d" % (i+1, len(_action_sequence)))
 
             if not success:
                 break
             # set up action
             action = _action_sequence[i]
+            i += 1
             run = ""
-            if action[0] == "Baxter6DPoseController":
-                if len(action[1])==3:
-                    control_arm, goal_pos, goal_quat = action[1]
-                    self._controller = Baxter6DPoseController(
-                        bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
-                        robot_jpos_getter=self._robot_jpos_getter,
-                        verbose=False
-                    )
-                else:
-                    control_arm, goal_pos, goal_quat, potential = action[1]
-                    self._controller = Baxter6DPoseController(
-                        bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
-                        robot_jpos_getter=self._robot_jpos_getter,
-                        verbose=False, potential_threshold = potential
-                    )
-                self._controller.set_goal(control_arm, goal_pos, goal_quat)
-                self._controller.set_arm_speed(2)
-                run = "controller"
-            elif action[0] == "Baxter3DPositionController":
-                control_arm, goal_pos, goal_quat = action[1]
-                self._controller = Baxter3DPositionController(
+
+            # check if action needs periodic updates based on object poses
+            if action[0] in ['pre-pre-connect-pose', 'pre-connect-pose', 'connect-pose']:
+                periodic_update = [action[0], action[1], action[2]]
+                action = action[3:]
+            else:
+                periodic_update = None
+
+            # multi-objective controller
+            if isinstance(action[0], tuple):
+                controllers_goals = action
+                self.cb.initialize_controllers_and_goals(controllers_goals,
+                    bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
+                    robot_jpos_getter=self._robot_jpos_getter
+                )
+                self.composition = [controller_name for controller_name, goal_info in controllers_goals]
+                run = "multiobjective-controller"
+            # single-objective controller
+            elif action[0] in self.cb.control_basis_controllers:
+                controller_goals = [action]
+                self.cb.initialize_controllers_and_goals(controller_goals,
                     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
                     robot_jpos_getter=self._robot_jpos_getter,
-                    verbose=False
+                    verbose=self.verbose, update_arm_speed=True
                 )
-                self._controller.set_goal(control_arm, goal_pos, goal_quat)
-                run = "controller"
-            elif action[0] == "BaxterAlignmentController":
-                control_arm, ee_axis, align_pos = action[1]
-                self._controller = BaxterAlignmentController(
-                    bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
-                    robot_jpos_getter=self._robot_jpos_getter,
-                    verbose=False
-                )
-                self._controller.set_goal(control_arm, ee_axis, align_pos)
-                run = "controller"
-            elif action[0] == "BaxterRotationController":
-                control_arm, rotation = action[1]
-                self._controller = BaxterRotationController(
-                    bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
-                    robot_jpos_getter=self._robot_jpos_getter,
-                    verbose=False
-                )
-                self._controller.set_goal(control_arm, rotation)
-                run = "controller"
+                run = action[0]
+            # close gripper
             elif action[0] == "close-gripper":
                 control_arm = action[1]
                 if control_arm == "left":
@@ -587,6 +549,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     print("FurnitureBaxterAssemblyEnv: unrecognized arm %s" % control_arm)
                     raise NameError
                 run = "gripper"
+            # open gripper
             elif action[0] == "open-gripper":
                 control_arm = action[1]
                 if control_arm == "left":
@@ -597,6 +560,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     print("FurnitureBaxterAssemblyEnv: unrecognized arm %s" % control_arm)
                     raise NameError
                 run = "gripper"
+            # connect
             elif action[0] == "connect":
                 run = "connect"
             else:
@@ -604,17 +568,21 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 raise NameError
 
             # perform action
-            if run == "controller":
+            if run in self.cb.control_basis_controllers:
+                objective_met = False
+                control_arm = self.cb.get_control_arm()
+                num_iters = 0
                 # run controller
-                potentials = np.ones(20)
-                num_moving = 0
-                while not self._controller.objective_met:
+                while not objective_met:
                     # set flag so unity will update
                     self._unity_updated = False
+                    # compute potential
+                    pot, progress = self.cb.compute_singleobjective_controller_potential(run)
                     # compute controller update
-                    velocities = self._controller.get_control()
+                    velocities, objective_met = self.cb.compute_singleobjective_controller_update(run)
+                    num_iters += 1
                     # perform controller command
-                    self.perform_command(velocities, self.gripper_grabs, True)
+                    self.perform_command(velocities, self.gripper_grabs, True, controller_name=run)
                     if (np.array(self.gripper_grabs)==1).any():
                         l_finger_tip = self.pose_in_base_from_name('l_gripper_l_finger_tip') if control_arm == "left" else self.pose_in_base_from_name('r_gripper_l_finger_tip')
                         r_finger_tip = self.pose_in_base_from_name('l_gripper_r_finger_tip') if control_arm == "left" else self.pose_in_base_from_name('r_gripper_r_finger_tip')
@@ -625,16 +593,58 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                             break
                     # render
                     self.vr.add(self.render('rgb_array'))
-                    potentials[num_moving%20] = self._controller.potential()
-                    if np.std(potentials) <= 1e-5 or np.all(np.diff(potentials) > 0):
+                    # check for progress
+                    if not progress:
                         success = False
                         print("********** no success because of potentials **********")
-                        if np.std(potentials) <= 1e-5:
-                            print("no movement")
-                        else:
-                            print("potentials increasing")
+                        # try connection anyway
+                        if periodic_update and periodic_update[0] == 'connect-pose':
+                            print("trying connection anyway")
+                            # set flag so unity will update
+                            self._unity_updated = False
+                            # perform connection
+                            success = self.perform_connection()
+                            # render
+                            self.vr.add(self.render('rgb_array'))
+                            # increment counter to pass connect pose and connect action
+                            if success:
+                                objective_met = True
+                                i += 1
                         break
-                    num_moving += 1
+                    # check if update needed
+                    if periodic_update and (num_iters%50 == 0):
+                        print("Updating controller goal for %s pose" % periodic_update[0])
+                        if periodic_update[0] == 'pre-pre-connect-pose':
+                            control_arm, pre_pre_connect_pose, _, _ = self.compute_connect_target_pose(periodic_update[1], periodic_update[2])
+                            self.cb.update_singleobjective_controller_goal(run, control_arm, pre_pre_connect_pose)
+                        elif periodic_update[0] == 'pre-connect-pose':
+                            control_arm, _, pre_connect_pose, _ = self.compute_connect_target_pose(periodic_update[1], periodic_update[2])
+                            self.cb.update_singleobjective_controller_goal(run, control_arm, pre_connect_pose)
+                        elif periodic_update[0] == 'connect-pose':
+                            control_arm, _, _, connect_pose = self.compute_connect_target_pose(periodic_update[1], periodic_update[2])
+                            self.cb.update_singleobjective_controller_goal(run, control_arm, connect_pose)
+                        else:
+                            print("FurnitureBaxterAssemblyEnv: unrecognized update %s" % periodic_update)
+                            raise NameError
+            elif run == "multiobjective-controller":
+                objective_met = False
+                # run controller
+                while not objective_met:
+                    # set flag so unity will update
+                    self._unity_updated = False
+                    # compute potential
+                    pot, progress = self.cb.compute_multiobjective_controller_potential(self.composition)
+                    # compute controller update
+                    velocities, objective_met = self.cb.compute_multiobjective_controller_update(self.composition)
+                    # perform controller command
+                    self.perform_multiobjective_command(velocities, self.gripper_grabs, self.composition)
+                    # render
+                    self.vr.add(self.render('rgb_array'))
+                    # check for progress
+                    if not progress:
+                        success = False
+                        print("********** no success because of potentials **********")
+                        break
             elif run == "gripper":
                 # set flag so unity will update
                 self._unity_updated = False
@@ -669,8 +679,9 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
     @param gripper_grabs, flags indicating whether [right, left] grippers have closed
         where 1 means gripper is closed and -1 means gripper is open
     @param controller_velocities, a boolean indicating whether to update velocities using a controller
+    @param controller_name, the name of the single-objective control basis controller being run
     """
-    def perform_command(self, velocities, gripper_grabs, controller_velocities=True):
+    def perform_command(self, velocities, gripper_grabs, controller_velocities=True, controller_name=None):
         # set up low action
         low_action = np.concatenate([velocities, gripper_grabs])
 
@@ -681,7 +692,32 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 
                 if i + 1 < self._action_repeat:
                     if controller_velocities:
-                        velocities = self._controller.get_control()
+                        velocities, _ = self.cb.compute_singleobjective_controller_update(controller_name)
+                    low_action = np.concatenate([velocities, gripper_grabs])
+                    ctrl = self._setup_action(low_action)
+
+        return
+
+    """
+    Performs the given multi-objective controller command.
+    Copied from part of _step_continuous() function in furniture.py
+
+    @param velocities, the change in configuration induced by the multi-objective controller
+    @param gripper_grabs, flags indicating whether [right, left] grippers have closed
+        where 1 means gripper is closed and -1 means gripper is open
+    @param composition, the list of controllers indicating the order of the composition
+    """
+    def perform_multiobjective_command(self, velocities, gripper_grabs, composition):
+        # set up low action
+        low_action = np.concatenate([velocities, gripper_grabs])
+
+        # keep trying to reach the target in a closed-loop
+        ctrl = self._setup_action(low_action)
+        for i in range(self._action_repeat):
+                self._do_simulation(ctrl)
+
+                if i + 1 < self._action_repeat:
+                    velocities, _ = self.cb.compute_multiobjective_controller_update(composition)
                     low_action = np.concatenate([velocities, gripper_grabs])
                     ctrl = self._setup_action(low_action)
 
@@ -726,15 +762,15 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     # break
 
     """
-    Computes the distances between current end-effector pose and possible part grasp poses.
+    Computes the distances between current end-effector pose and possible grasp/connect poses.
     Note: distance is computed based on position and rotation, since positions of the grasp poses will
           be the same for any poses defined on the same local point on the object.
 
-    @param grasp_pose_mats, a list of part grasp poses in base frame
+    @param pose_mats, a list of part grasp/connect poses in base frame
     @param control_arm, the arm being controlled for this action
     @return a list of (dist, pose) tuples, sorted by distance
     """
-    def compute_grasp_pose_distances(self, grasp_pose_mats, control_arm):
+    def compute_pose_distances(self, pose_mats, control_arm):
         # initialize list of (dist, pose) tuples
         dists_poses = []
 
@@ -746,24 +782,34 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         
         # get end-effector position and quaternion
         ee_pos, ee_quat = T.mat2pose(ee_pose_mat)
+        ee_euler = (180/np.pi) * np.array(T.quat_to_euler(ee_quat))
+        if self.debug:
+            print("ee euler angles: ", ee_euler)
 
         # compute distance to each grasp pose
-        for grasp_pose in grasp_pose_mats:
+        for pose in pose_mats:
             # get object position and quaternion
-            obj_pos, obj_quat = T.mat2pose(grasp_pose)
+            pos, quat = T.mat2pose(pose)
+            euler = (180/np.pi) * np.array(T.quat_to_euler(quat))
+            if self.debug:
+                print("possible pos: ", pos, "quat: ", quat, "euler: ", euler)
 
             # compute difference between current and goal pose
-            dist_pos = np.linalg.norm(ee_pos - obj_pos)
-            dist_quat = Quaternion.distance(Quaternion(ee_quat), Quaternion(obj_quat))
-            dist_quat = min(dist_quat, math.pi - dist_quat)
-            dist = dist_pos + dist_quat
+            dist_pos = np.linalg.norm(ee_pos - pos)
+            dist_rot = np.linalg.norm(ee_euler - euler)
+            # alternative distance option: angle difference between quaternions
+            # dist_quat = Quaternion.distance(Quaternion(ee_quat), Quaternion(quat))
+            # dist_quat = min(dist_quat, math.pi - dist_quat)
+            # alternative distance option: angle difference between z-axis
+            # dist_quat = np.arccos(np.dot(ee_pose_mat[2, :2], pose[2, :2]))
+            dist = dist_pos + dist_rot #dist_quat
             if self.debug:
                 print("total distance: %f, position distance: %f, rotation distance: %f"
-                    % (dist, dist_pos, dist_quat)
+                    % (dist, dist_pos, dist_rot) # dist_quat
                 )
 
             # add distance and pose to list of tuples
-            dists_poses.append((dist, grasp_pose))
+            dists_poses.append((dist, pose))
 
         # sort grasp poses by shortest distance
         dists_poses.sort()
@@ -817,6 +863,144 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
 
         return dists_poses
 
+    """
+    Computes the target hand pose for a connection between two sites.
+
+    @param moving_site_name, the name of the site to be connected on the object being acted on by the gripper
+    @param target_site_name, the name of the site to be connected on the stationary object (usually on the floor)
+    @return the arm being controlled
+    @return the pre-pre-target pose
+    @return the pre-target pose
+    @return the target pose for the gripper based on the transformation between the moving and target sites
+    """
+    def compute_connect_target_pose(self, moving_site_name, target_site_name):
+        # get manipulated part name based on moving connection site
+        partial_part_name = moving_site_name[:moving_site_name.find('-')]
+
+        # determine if connection sites should be interpolated for part
+        allow_interpolation = False
+        if self._furniture_name in self.allow_grasp_interpolation.keys():
+            for part in self.allow_grasp_interpolation[self._furniture_name]:
+                if partial_part_name in part:
+                    allow_interpolation = True
+
+        # get the poses of the connection sites in unity
+        target_site_qpos = self._site_xpos_xquat(target_site_name)
+        moving_site_qpos = self._site_xpos_xquat(moving_site_name)
+
+        # get the poses of the connection sites in base
+        target_site_qpos_mat = T.pose_in_A_to_pose_in_B(T.pose2mat((target_site_qpos[:3], target_site_qpos[3:])),
+                                                        self.world_pose_in_base)
+        moving_site_qpos_mat = T.pose_in_A_to_pose_in_B(T.pose2mat((moving_site_qpos[:3], moving_site_qpos[3:])),
+                                                        self.world_pose_in_base)
+        target_site_pose = T.mat2pose(target_site_qpos_mat)
+        moving_site_pose = T.mat2pose(moving_site_qpos_mat)
+        target_site_euler = (180/np.pi) * np.array(T.quat_to_euler(target_site_pose[1]))
+        moving_site_euler = (180/np.pi) * np.array(T.quat_to_euler(moving_site_pose[1]))
+        if self.debug:
+            print("target site pos: ", target_site_pose[0], "target site quat: ", target_site_pose[1], "target site euler: ", target_site_euler)
+            print("moving site pos: ", moving_site_pose[0], "moving site quat: ", moving_site_pose[1], "moving site euler: ", moving_site_euler)
+
+        # get the poses of the grippers
+        left_hand_pose_mat = self.pose_in_base_from_name('left_gripper_base')
+        right_hand_pose_mat = self.pose_in_base_from_name('right_gripper_base')
+
+        # get control arm and initialize target pose
+        left_distance = np.linalg.norm(np.array(moving_site_qpos_mat)[:3, 3]-left_hand_pose_mat[:3, 3], axis=-1)
+        right_distance = np.linalg.norm(np.array(moving_site_qpos_mat)[:3, 3]-right_hand_pose_mat[:3, 3], axis=-1)
+        # TODO: A potential bug if the moving site is closer to the ungrasped hand
+        control_arm = 'left' if left_distance < right_distance else 'right'
+        hand_pose_mat = left_hand_pose_mat if control_arm == 'left' else right_hand_pose_mat
+        target_hand_pose_mat = hand_pose_mat.copy()
+
+        ##### Emily's connection computation; this seems to work better for Emily in practice
+        # # compute change in position and rotation (6D)
+        # dx_pos = np.array(target_site_pose[0]) - np.array(moving_site_pose[0])
+        # dx_rot = np.array(target_site_euler) - np.array(moving_site_euler)
+        # # fix rotation about z-axis to be 0 # TODO, may not always work with z-axis
+        # dx_rot[2] = 0
+        # if self.debug:
+        #     print("dx pos: ", dx_pos, "dx rot: ", dx_rot)
+
+        # # compute initial pose
+        # init_hand_pose = T.mat2pose(target_hand_pose_mat)
+        # init_hand_euler = (180/np.pi) * np.array(T.quat_to_euler(init_hand_pose[1]))
+
+        # # compute goal pose base on change in position and rotation
+        # goal_hand_pos = np.array(init_hand_pose[0]) + dx_pos
+        # goal_hand_rot = np.array(init_hand_euler) + dx_rot
+        # if self.debug:
+        #     print("init hand pos: ", init_hand_pose[0], "init hand rot: ", init_hand_euler)
+        #     print("goal hand pos: ", goal_hand_pos, "goal hand rot: ", goal_hand_rot)
+
+        # # compute target hand pose
+        # target_hand_pose = (goal_hand_pos, T.euler_to_quat(goal_hand_rot))
+        # target_hand_pose_mat = T.pose2mat(target_hand_pose)
+
+        # # compute possible rotations and rank by distance
+        # possible_connection_targets = self.Rotation_interpolation(target_hand_pose_mat, axis='x')
+        # dists_targets = self.compute_pose_distances(possible_connection_targets, control_arm)
+        # # print("poses and dists: ")
+        # # for i in range(len(dists_targets)):
+        # #     print("pose %d, distance %f" % (i, dists_targets[i][0]))
+
+        # # get closest connection pose that has not been tried yet
+        # for dist, p in dists_targets:
+        #     find_pose = True
+        #     target_hand_pose_mat = p
+        #     target_hand_pose = T.mat2pose(target_hand_pose_mat)
+        #     for t_p in self.tried_pose:
+        #         dist_pos = np.linalg.norm(target_hand_pose[0] - t_p[0])
+        #         dist_quat = Quaternion.distance(Quaternion(target_hand_pose[1]), Quaternion(t_p[1]))
+        #         dist_quat = min(dist_quat, math.pi - dist_quat)
+        #         tried_pose_dist = dist_pos + dist_quat
+        #         if tried_pose_dist < self.tried_pose_threshold:
+        #             find_pose = False
+        #     if find_pose:
+        #         print("trying pose closest to gripper with dist %f" % dist)
+        #         break
+        #####
+
+        ##### Kaizhi's connection computation
+        # compute difference in translation and rotation
+        # translation = target_site_qpos[:3] - moving_site_qpos[:3]
+        # m_site_id = self.sim.model.site_name2id(m_site)
+        # m_body_id = self.sim.model.site_bodyid[m_site_id]
+        # m_body_name = self.sim.model.body_names[m_body_id]
+        # new_pos, new_quat = T.transform_to_target_quat(moving_site_qpos, self._get_qpos(m_body_name), target_site_qpos[3:])
+        translation = target_site_qpos_mat[:3, 3] - moving_site_qpos_mat[:3, 3]
+        rotation = (moving_site_qpos_mat[:3, :3]).transpose().dot(target_site_qpos_mat[:3, :3])
+        # rotation = (target_site_qpos_mat[:3, :3]).transpose().dot(moving_site_qpos_mat[:3, :3])
+        appended_rotation = self.Rotation_interpolation(rotation)
+        # compute target translation
+        target_hand_pose_mat[:3, 3] += translation
+        # target_hand_pose_mat[:3,:3] = T.pose2mat((new_pos,new_quat))[:3, :3].dot(target_hand_pose_mat[:3,:3])
+        # compute target rotation
+        for rotation in appended_rotation:
+            find_pose = True
+            target_hand_pose_mat[:3, :3] = rotation.dot(hand_pose_mat[:3, :3])
+            target_hand_pose = T.mat2pose(target_hand_pose_mat)
+            for t_p in self.tried_pose:
+                dist_pos = np.linalg.norm(target_hand_pose[0] - t_p[0])
+                dist_quat = Quaternion.distance(Quaternion(target_hand_pose[1]), Quaternion(t_p[1]))
+                dist_quat = min(dist_quat, math.pi - dist_quat)
+                tried_pose_dist = dist_pos + dist_quat
+                if tried_pose_dist < tried_pose_threshold:
+                    find_pose = False
+            if find_pose:
+                break
+        #####
+
+        # compute the pre-target pose
+        # pre_target_hand_pose_mat = target_hand_pose_mat.copy()
+        # pre_target_hand_pose_mat[:3, -1] -= self.grasp_offset * pre_target_hand_pose_mat[:3, 2]
+        # pre_target_hand_pose = T.mat2pose(pre_target_hand_pose_mat)
+        pre_target_hand_pose = (target_hand_pose[0]+[0,0,self.lift_offset], target_hand_pose[1])
+        # compute the pre-pre-target pose
+        pre_pre_target_hand_pose = (pre_target_hand_pose[0]+[0,0,self.lift_offset], pre_target_hand_pose[1])
+
+        return control_arm, pre_pre_target_hand_pose, pre_target_hand_pose, target_hand_pose
+
 """
 Main function; will not be called when environment is constructed from appropriate demo
 """
@@ -831,6 +1015,7 @@ def main():
     # change default config for Baxter
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--debug', type=str2bool, default=False)
+    parser.add_argument('--verbose', type=str2bool, default=False)
 
     parser.set_defaults(render=True)
 

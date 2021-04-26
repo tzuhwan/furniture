@@ -59,6 +59,12 @@ class ControlBasis:
 	def get_temporal_decomposition(self):
 		return self.temporal_decomposition
 
+	def get_control_arm(self):
+		control_arm = []
+		for c in self.controllers.keys():
+			control_arm.append(self.controllers[c].control_arm)
+		return control_arm[0]
+
 	#################################
 	### CONTROLLER INITIALIZATION ###
 	#################################
@@ -121,13 +127,22 @@ class ControlBasis:
 			if controller[0] == "Baxter6DPoseController":
 				if len(controller[1]) == 3:
 					control_arm, goal_pos, goal_quat = controller[1]
-					arm_speed = 2
+					arm_speed = 8
+					potential_threshold = 0.0005
+				elif len(controller[1]) == 4:
+					control_arm, goal_pos, goal_quat, param = controller[1]
+					if param < 1: # must have been given potential threshold
+						arm_speed = 8
+						potential_threshold = param
+					else: # must have been given arm speed
+						arm_speed = param
+						potential_threshold = 0.0005
 				else:
-					control_arm, goal_pos, goal_quat, arm_speed = controller[1]
+					control_arm, goal_pos, goal_quat, potential_threshold, arm_speed = controller[1]
 				self.controllers[controller[0]] = Baxter6DPoseController(
 					bullet_data_path=bullet_data_path,
 					robot_jpos_getter=robot_jpos_getter,
-					verbose=verbose, debug=debug, suppress_output=suppress_output
+					verbose=verbose, debug=debug, suppress_output=suppress_output, potential_threshold=potential_threshold
 				)
 				self.controllers[controller[0]].set_goal(control_arm, goal_pos, goal_quat)
 				self.controllers[controller[0]].set_arm_speed(arm_speed)
@@ -135,52 +150,88 @@ class ControlBasis:
 			elif controller[0] == "Baxter3DPositionController":
 				if len(controller[1]) == 2:
 					control_arm, goal_pos = controller[1]
-					arm_speed = 2
+					arm_speed = 8
+					potential_threshold = 0.0005
+				elif len(controller[1]) == 3:
+					control_arm, goal_pos, param = controller[1]
+					if param < 1: # must have been given potential threshold
+						arm_speed = 8
+						potential_threshold = param
+					else: # must have been given arm speed
+						arm_speed = param
+						potential_threshold = 0.0005
 				else:
-					control_arm, goal_pos, arm_speed = controller[1]
+					control_arm, goal_pos, potential_threshold, arm_speed = controller[1]
 				self.controllers[controller[0]] = Baxter3DPositionController(
 					bullet_data_path=bullet_data_path,
 					robot_jpos_getter=robot_jpos_getter,
-					verbose=verbose, debug=debug, suppress_output=suppress_output
+					verbose=verbose, debug=debug, suppress_output=suppress_output, potential_threshold=potential_threshold
 				)
 				self.controllers[controller[0]].set_goal(control_arm, goal_pos)
 				self.controllers[controller[0]].set_arm_speed(arm_speed)
 			elif controller[0] == "BaxterRotationController":
 				if len(controller[1]) == 2:
 					control_arm, goal_quat = controller[1]
-					arm_speed = 2
+					arm_speed = 8
+					potential_threshold = 0.0005
+				elif len(controller[1]) == 3:
+					control_arm, goal_quat, param = controller[1]
+					if param < 1: # must have been given potential threshold
+						arm_speed = 8
+						potential_threshold = param
+					else: # must have been given arm speed
+						arm_speed = param
+						potential_threshold = 0.0005
 				else:
-					control_arm, goal_quat, arm_speed = controller[1]
+					control_arm, goal_quat, potential_threshold, arm_speed = controller[1]
 				self.controllers[controller[0]] = self._controller = BaxterRotationController(
 					bullet_data_path=bullet_data_path,
 					robot_jpos_getter=robot_jpos_getter,
-					verbose=verbose, debug=debug, suppress_output=suppress_output
+					verbose=verbose, debug=debug, suppress_output=suppress_output, potential_threshold=potential_threshold
 				)
 				self.controllers[controller[0]].set_goal(control_arm, goal_quat)
 				self.controllers[controller[0]].set_arm_speed(arm_speed)
 			elif controller[0] == "BaxterAlignmentController":
 				if len(controller[1]) == 3:
 					control_arm, ee_axis, align_pos = controller[1]
-					arm_speed = 2
+					arm_speed = 8
+					potential_threshold = 0.0005
+				elif len(controller[1]) == 4:
+					control_arm, goal_pos, goal_quat, param = controller[1]
+					if param < 1: # must have been given potential threshold
+						arm_speed = 8
+						potential_threshold = param
+					else: # must have been given arm speed
+						arm_speed = param
+						potential_threshold = 0.0005
 				else:
-					control_arm, ee_axis, align_pos, arm_speed = controller[1]
+					control_arm, ee_axis, align_pos, potential_threshold, arm_speed = controller[1]
 				self.controllers[controller[0]] = BaxterAlignmentController(
 					bullet_data_path=bullet_data_path,
 					robot_jpos_getter=robot_jpos_getter,
-					verbose=verbose, debug=debug, suppress_output=suppress_output
+					verbose=verbose, debug=debug, suppress_output=suppress_output, potential_threshold=potential_threshold
 				)
 				self.controllers[controller[0]].set_goal(control_arm, ee_axis, align_pos)
 				self.controllers[controller[0]].set_arm_speed(arm_speed)
 			elif controller[0] == "BaxterScrewController":
 				if len(controller[1]) == 2:
 					control_arm, rotation = controller[1]
-					arm_speed = 2
+					arm_speed = 8
+					potential_threshold = 0.0005
+				elif len(controller[1]) == 3:
+					control_arm, goal_quat, param = controller[1]
+					if param < 1: # must have been given potential threshold
+						arm_speed = 8
+						potential_threshold = param
+					else: # must have been given arm speed
+						arm_speed = param
+						potential_threshold = 0.0005
 				else:
-					control_arm, rotation, arm_speed = controller[1]
+					control_arm, rotation, potential_threshold, arm_speed = controller[1]
 				self.controllers[controller[0]] = BaxterScrewController(
 					bullet_data_path=bullet_data_path,
 					robot_jpos_getter=robot_jpos_getter,
-					verbose=verbose, debug=debug, suppress_output=suppress_output
+					verbose=verbose, debug=debug, suppress_output=suppress_output, potential_threshold=potential_threshold
 				)
 				self.controllers[controller[0]].set_goal(control_arm, rotation)
 				self.controllers[controller[0]].set_arm_speed(arm_speed)
@@ -224,6 +275,58 @@ class ControlBasis:
 	##########################
 
 	"""
+	Update the single-objective controller goal.
+
+	@param controller_name, the name of the controller being run
+		   Note: used for indexing into control basis controller dictionary
+	"""
+	def update_singleobjective_controller_goal(self, controller_name, control_arm, goal):
+		if controller_name == "Baxter6DPoseController":
+			goal_pos, goal_quat = goal
+			self.controllers[controller_name].set_goal(control_arm, goal_pos, goal_quat)
+		elif controller_name == "Baxter3DPositionController":
+			self.controllers[controller_name].set_goal(control_arm, goal)
+		elif controller_name == "BaxterRotationController":
+			self.controllers[controller_name].set_goal(control_arm, goal)
+		elif controller_name == "BaxterAlignmentController":
+			ee_axis, align_pos = goal
+			self.controllers[controller_name].set_goal(control_arm, ee_axis, align_pos)
+		elif controller_name == "BaxterScrewController":
+			self.controllers[controller_name].set_goal(control_arm, goal)
+		else:
+			print("ControlBasis: controller type %s not recognized" % controller_name)
+			raise NameError
+
+	"""
+	Compute the single-objective potential.
+
+	@param controller_name, the name of the controller being run
+		   Note: used for indexing into control basis controller dictionary
+	@return the potential of the controller
+	@return boolean indicating if controller is making progress
+	"""
+	def compute_singleobjective_controller_potential(self, controller_name):
+		# initialize potential
+		pot = 0
+		progress = True
+
+		# compute potential
+		pot = self.controllers[controller_name].potential()
+		self.potentials[controller_name][self.num_iters%len(self.potentials[controller_name])] = pot
+		# check if progress is being made
+		if (not self.controllers[controller_name].objective_met) and (np.std(self.potentials[controller_name]) <= 1e-5):
+			print("ControlBasis: %s potentials not changing" % controller_name)
+			progress = False
+		if (not self.controllers[controller_name].objective_met) and (np.all(np.diff(self.potentials[controller_name]) > 0)):
+			print("ControlBasis: %s potentials increasing" % controller_name)
+			progress = False
+
+		# increment number of iterations
+		self.num_iters += 1
+
+		return pot, progress
+
+	"""
 	Compute the single-objective controller update.
 
 	@param controller_name, the name of the controller being run
@@ -241,13 +344,13 @@ class ControlBasis:
 		return velocities, self.controllers[controller_name].objective_met
 
 	"""
-	Computes the potentials of each controller in the composition.
+	Compute the potentials of each controller in the composition.
 
 	@param composition, the list of controllers in the given composition
 	@return the combined potential of each controller
 	@return boolean indicating if controllers are making progress
 	"""
-	def compute_multiobjective_potentials(self, composition):
+	def compute_multiobjective_controller_potentials(self, composition):
 		# initialize multi-objective potential
 		multiobj_pot = 0
 		progress = True
@@ -273,7 +376,7 @@ class ControlBasis:
 		return multiobj_pot, progress
 		
 	"""
-	Computes the multi-objective controller update by composing controller commands.
+	Compute the multi-objective controller update by composing controller commands.
 
 	@param composition, the list of controllers in the given composition
 	@return the combined controller update from the composition of the controllers
