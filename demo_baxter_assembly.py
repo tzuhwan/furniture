@@ -155,6 +155,7 @@ def argsparser():
 	parser.add_argument('--video_name', type=str, default='FurnitureBaxterAssemblyEnv_test.mp4')
 	parser.add_argument('--verbose', type=str2bool, default=True)
 	parser.add_argument('--visualize_samples', type=str2bool, default=False)
+	parser.add_argument('--semantic_frames', type=str2bool, default=False)
 
 	import config.furniture as furniture_config
 	furniture_config.add_argument(parser)

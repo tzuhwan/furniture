@@ -7,6 +7,9 @@ import time
 from datetime import datetime
 from collections import OrderedDict
 
+# only needed for semantic frame option
+import yaml
+
 import numpy as np
 import copy
 import math
@@ -31,6 +34,9 @@ from read_local_pose import PoseReader
 os.chdir(path)
 os.chdir('./task_planner/pyperplan')
 import pyperplan
+os.chdir(path)
+os.chdir('./semantic_frame_pipeline')
+import pipeline as SFpipeline
 os.chdir(path)
 del path
 
@@ -391,7 +397,25 @@ class FurnitureBaxterAssemblyAutoEnv(FurnitureBaxterEnv):
         self.object = self._furniture_name[:self._furniture_name.rfind('_')]
         task_planning_start = datetime.now()
         # construct task plan
-        self._actions = pyperplan.plan_sequence(self.object)
+        if config.semantic_frames:
+            # initialize speech recognition
+            r, mic, nlp = SFpipeline.initialize()
+            # get current path
+            path = os.getcwd()
+            # change path to semantic frame pipeline
+            os.chdir("./semantic_frame_pipeline")
+            # listen for semantic frame and get actions
+            semantic_frame = SFpipeline.pipeline(r, mic, nlp)
+            frame_path = open(semantic_frame)
+            frame = yaml.load(frame_path, Loader=yaml.FullLoader)
+            frame_actions = frame["actions"]
+            print("frame actions:", frame_actions)
+            # change to previous path
+            os.chdir(path)
+            # format actions
+            self._actions = self.check_frame_actions(frame_actions)
+        else:
+            self._actions = pyperplan.plan_sequence(self.object)
         # print("PLANNED ACTIONS: ", self._actions)
         # check planned arms
         self._actions = self.check_planned_arms(self._actions)
@@ -1513,6 +1537,29 @@ class FurnitureBaxterAssemblyAutoEnv(FurnitureBaxterEnv):
         #####
         return action_sequence
 
+    """
+    Modifies action sequence from semantic frames to match part and connection site names
+    """
+    def check_frame_actions(self, action_sequence):
+        # initialize name map
+        name_map = pyperplan.NAME_MAPPING[self.object]
+        # remove step number from sequence of actions
+        frame_actions = []
+        for step in action_sequence:
+            for i in step.values():
+                frame_actions.append(i)
+
+        # modify actions
+        planned_actions = []
+        for action in frame_actions:
+            a = action.split(' ')
+            if a[0] == 'grasp':
+                planned_actions.append(['grasp', 'left', name_map[a[-1]]])
+            elif a[0] == 'insert':
+                planned_actions.append(['insert', 'left', name_map[a[1]], name_map[a[2]]])
+                
+        return planned_actions
+
     def write_experiment_stats_to_file(self, config, file_name="experiment_info.txt"):
         # open file for appending
         f = open(os.getcwd() + "/" + file_name, 'a')
@@ -1547,6 +1594,7 @@ def main():
     parser.add_argument('--verbose', type=str2bool, default=False)
     parser.add_argument('--record_video', type=str2bool, default=False)
     parser.add_argument('--video_name', type=str, default='FurnitureBaxterAssemblyEnv_test.mp4')
+    parser.add_argument('--semantic_frames', type=str2bool, default=False)
 
     parser.set_defaults(render=True)
 
