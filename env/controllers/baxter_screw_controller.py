@@ -88,8 +88,12 @@ class BaxterScrewController(BaxterAssemblyController):
 
 		# we now know arm is either "left" or "right"
 		self.control_arm = control_arm
-		self.total_rotation = relative_rotation
-		self.remaining_rotation = relative_rotation
+		if relative_rotation is None:
+			self.total_rotation = None
+			self.remaining_rotation = None
+		else:
+			self.total_rotation = relative_rotation
+			self.remaining_rotation = relative_rotation
 		if self.verbose:
 			print("BaxterScrewController: New goal set for %s arm" % self.control_arm)
 		return
@@ -130,6 +134,20 @@ class BaxterScrewController(BaxterAssemblyController):
 	Based on attractive potential field.
 	"""
 	def potential(self):
+		# check if goal exists
+		if self.remaining_rotation is None:
+			return 0
+		# if joint limit, goal met
+		curr_q = self.robot_jpos_getter()
+		if self.control_arm == "left":
+			curr_wrist_q = curr_q[self.left_wrist_relevant_idx]
+			if (curr_wrist_q <= self.left_lower_limit) or (curr_wrist_q >= self.left_upper_limit):
+				return 0
+		else: # self.control_arm == "right"
+			curr_wrist_q = curr_q[self.right_wrist_relevant_idx]
+			if (curr_wrist_q <= self.right_lower_limit) or (curr_wrist_q >= self.right_upper_limit):
+				return 0
+
 		# compute difference between current and goal rotation
 		diff = -self.remaining_rotation
 
@@ -161,6 +179,9 @@ class BaxterScrewController(BaxterAssemblyController):
 	@return the commanded change in the controlled wrist joint
 	"""
 	def get_dq(self):
+		# check if goal exists
+		if self.remaining_rotation is None:
+			return np.zeros(14)
 		# compute gradient
 		grad = -self.gradient()
 

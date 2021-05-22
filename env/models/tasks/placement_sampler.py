@@ -69,7 +69,8 @@ class UniformRandomSampler(ObjectPositionSampler):
         self.rng = rng
         self.object_name = None
         self.flip_parts = []
-        self.part_position_bounds = []
+        self.tilt_parts = {}
+        self.part_position_bounds = {}
         self.part_rotation_bounds = {}
 
     def sample_x(self, object_horizontal_radius, part_name=None):
@@ -82,10 +83,10 @@ class UniformRandomSampler(ObjectPositionSampler):
             minimum += object_horizontal_radius
             maximum -= object_horizontal_radius
 
-        # if part_name in self.part_position_bounds:
-        #     # compute center
-        #     center = (minimum + maximum) / 2
-        #     return self.rng.uniform(high=center+0.05, low=minimum-0.05)
+        # if part_name in self.part_position_bounds.keys():
+        #     low = self.part_position_bounds[part_name][0][0]
+        #     high = self.part_position_bounds[part_name][0][1]
+        #     return self.rng.uniform(high=high, low=low)
 
         return self.rng.uniform(high=maximum, low=minimum)
 
@@ -99,10 +100,10 @@ class UniformRandomSampler(ObjectPositionSampler):
             minimum += object_horizontal_radius
             maximum -= object_horizontal_radius
 
-        # if part_name in self.part_position_bounds:
-        #     # compute center
-        #     center = (minimum + maximum) / 2
-        #     return self.rng.uniform(high=center+0.05, low=minimum-0.05)
+        # if part_name in self.part_position_bounds.keys():
+        #     low = self.part_position_bounds[part_name][1][0]
+        #     high = self.part_position_bounds[part_name][1][1]
+        #     return self.rng.uniform(high=high, low=low)
 
         return self.rng.uniform(high=maximum, low=minimum)
 
@@ -127,7 +128,13 @@ class UniformRandomSampler(ObjectPositionSampler):
         if part_name in self.flip_parts:
             flip_x_quat = [np.cos(np.pi / 2), np.sin(np.pi / 2), 0, 0] # rotation by 90 degrees about x axis
             z_quat = [np.cos(rot_angle / 2), 0, 0, -np.sin(rot_angle / 2)] # rotation about z axis
-            return T.quat_multiply(z_quat, flip_x_quat) # flip about x, then rotate about z
+            return T.quat_multiply(z_quat, flip_x_quat) # rotate about x, then rotate about z
+        # check if part needs to be tilted
+        if part_name in self.tilt_parts.keys():
+            x_angle = self.tilt_parts[part_name]
+            tilt_x_quat = [np.cos(x_angle), np.sin(x_angle), 0, 0] # rotation by 45 degrees about x axis
+            z_quat = [np.cos(rot_angle / 2), 0, 0, -np.sin(rot_angle / 2)] # rotation about z axis
+            return T.quat_multiply(z_quat, tilt_x_quat) # rotate about x, then rotate about z
 
         return [np.cos(rot_angle / 2), 0, 0, np.sin(rot_angle / 2)]  # rotation about z axis which is upwards
 

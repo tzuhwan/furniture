@@ -35,8 +35,8 @@ class ControlBasis:
 		}
 
 		self.temporal_decomposition = {
-			"screw-into": ["Baxter3DPositionController", "BaxterRotationController", "BaxterScrewController"],
-			"insert-into": ["Baxter3DPositionController", "BaxterRotationController"]
+			"screw": ["Baxter3DPositionController", "BaxterRotationController", "BaxterScrewController"],
+			"insert": ["Baxter3DPositionController", "BaxterRotationController"]
 		}
 
 		self.num_iters = 0
@@ -64,6 +64,69 @@ class ControlBasis:
 		for c in self.controllers.keys():
 			control_arm.append(self.controllers[c].control_arm)
 		return control_arm[0]
+
+	def objective_met(self):
+		objective_met = []
+		for c in self.controllers.keys():
+			objective_met.append(self.controllers[c].objective_met)
+		return np.all(objective_met)
+
+	"""
+	Gets tuple of (controller, goal) tuples for given high-level action and goals based on composable causality predictions.
+	"""
+	def get_controller_tuple_for_action(self, action_name, control_arm, goals, ignore=None):
+		# get composable causality from predictions file
+		self.read_walkout_samples_from_file(file_name="composition_predictions.txt")
+
+		# get list of (probability, composition) tuples for action
+		probabilities_compositions = []
+		for c in self.composable_causality[action_name].keys():
+			p = self.composable_causality[action_name][c]['probability']
+			probabilities_compositions.append((p, c))
+
+		# sort by most probable
+		probabilities_compositions.sort(reverse=True)
+
+		# get most probable composition
+		prob, composition_str = probabilities_compositions[0]
+
+		# get composition from string
+		composition = composition_str.split(" <| ")
+		composition.reverse()
+
+		# set list of (controller, goal) tuples
+		action_controllers = ()
+		if action_name == "screw":
+			goal_pos, goal_quat, rotation = goals
+			for controller in composition:
+				if ignore == controller:
+					action_controllers = action_controllers + ((controller, (control_arm, None)),)
+				elif controller == "Baxter3DPositionController":
+					action_controllers = action_controllers + ((controller, (control_arm, goal_pos)),)
+				elif controller == "BaxterRotationController":
+					action_controllers = action_controllers + ((controller, (control_arm, goal_quat)),)
+				elif controller == "BaxterScrewController":
+					action_controllers = action_controllers + ((controller, (control_arm, rotation)),)
+				else:
+					print("ControlBasis: controller type %s not recognized for screw action" % controller)
+					raise NameError
+		elif action_name == "insert":
+			goal_pos, goal_quat = goals
+			for controller in composition:
+				if ignore == controller:
+					action_controllers = action_controllers + ((controller, (control_arm, None)),)
+				elif controller == "Baxter3DPositionController":
+					action_controllers = action_controllers + ((controller, (control_arm, goal_pos)),)
+				elif controller == "BaxterRotationController":
+					action_controllers = action_controllers + ((controller, (control_arm, goal_quat)),)
+				else:
+					print("ControlBasis: controller type %s not recognized for screw action" % controller)
+					raise NameError
+		else:
+			print("ControlBasis: action name %s not recognized" % action_name)
+			raise NameError
+
+		return action_controllers
 
 	#################################
 	### CONTROLLER INITIALIZATION ###
@@ -344,13 +407,38 @@ class ControlBasis:
 		return velocities, self.controllers[controller_name].objective_met
 
 	"""
+	Update the single-objective controller goal.
+	"""
+	def update_multiobjective_controller_goal(self, control_arm, goals, ignore=None):
+		# unpack goal
+		if len(goals) == 2:
+			goal_pos, goal_quat = goals
+		else:
+			goal_pos, goal_quat, rotation = goals # TODO does not consider AlignmentController for now
+
+		# set goals
+		for c in self.controllers.keys():
+			if ignore == c:
+				self.controllers[c].set_goal(control_arm, None)
+			elif c == "Baxter3DPositionController":
+				self.controllers[c].set_goal(control_arm, goal_pos)
+			elif c == "BaxterRotationController":
+				self.controllers[c].set_goal(control_arm, goal_quat)
+			elif c == "BaxterScrewController":
+				if rotation:
+					self.controllers[c].set_goal(control_arm, rotation)
+			else:
+				print("ControlBasis: controller type %s not recognized" % c)
+				raise NameError
+
+	"""
 	Compute the potentials of each controller in the composition.
 
 	@param composition, the list of controllers in the given composition
 	@return the combined potential of each controller
 	@return boolean indicating if controllers are making progress
 	"""
-	def compute_multiobjective_controller_potentials(self, composition):
+	def compute_multiobjective_controller_potential(self, composition):
 		# initialize multi-objective potential
 		multiobj_pot = 0
 		progress = True
@@ -361,7 +449,7 @@ class ControlBasis:
 			pot = self.controllers[c].potential()
 			self.potentials[c][self.num_iters%len(self.potentials[c])] = pot
 			# check if progress is being made
-			if (not self.controllers[c].objective_met) and (np.std(self.potentials[c]) <= 1e-7):
+			if (not self.controllers[c].objective_met) and (np.std(self.potentials[c]) <= 1e-5):
 				print("ControlBasis: %s potentials not changing" % c)
 				progress = False
 			if (not self.controllers[c].objective_met) and (np.all(np.diff(self.potentials[c]) > 0)):
@@ -555,7 +643,7 @@ class ControlBasis:
 	@return none
 	@post dictionary of compositions and sampling statistics initialized
 	"""
-	def read_walkout_samples_from_file(self, file_name):
+	def read_walkout_samples_from_file(self, file_name="composition_predictions.txt"):
 		# open file for reading
 		f = open(self.file_path + file_name, 'r')
 		# read information from file

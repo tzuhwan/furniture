@@ -56,15 +56,22 @@ class PoseReader(object):
         else:
             self.sim_client = -1
         self.obj_list = {
+            # '0_bench_bjoderna': {
+            #     '5_part5': [[12], ['bench_bjoderna_middle_support_grasp_pose']],
+            #     '0_part0': [[4], ['bench_bojerna_leg_grasp_pose'], 'bench_leg'],
+            #     '1_part1': [[4], ['bench_bojerna_leg_grasp_pose'], 'bench_leg'],
+            #     '3_part3': [[4], ['bench_bojerna_leg_grasp_pose'], 'bench_leg'],
+            #     '4_part4': [[4], ['bench_bojerna_leg_grasp_pose'], 'bench_leg'],
+            # },
             '1_chair_agne': {
                 '1_leg1': [[6], ['chair_leg1_grasp_pose']],
                 '2_leg2': [[6], ['chair_leg2_grasp_pose']],
                 '3_seat': [[4], ['chair_seat_grasp_pose']]
             },
             '2_chair_bernhard': {
-                '1_chair_leg_left': [[6], ['chair_bernhard_left_leg_grasp_pose']],
-                '2_chair_leg_right': [[6], ['chair_bernhard_right_leg_grasp_pose']],
-                '3_chair_seat': [[12], ['chair_bernhard_seat_grasp_pose']]
+                '1_chair_leg_left': [[10], ['chair_bernhard_left_leg_grasp_pose']],
+                '2_chair_leg_right': [[10], ['chair_bernhard_right_leg_grasp_pose']],
+                '3_chair_seat': [[8], ['chair_bernhard_seat_grasp_pose']]
             },
             '4_desk_mikael': {
                 '2_leftplane': [[8], ['desk_mikael_left_plane_grasp_pose'], '1_leftplane'],
@@ -93,10 +100,10 @@ class PoseReader(object):
                 '5_table_top': [[8], ['klubbo_table_top_grasp_pose']]
             },
             '9_table_lack': {
-                '1_table_leg1': [[2, 4], ['table_lack_leg_grasp_pose', 'table_lack_leg_helper_pose'], 'table_leg'],
-                '2_table_leg2': [[2, 4], ['table_lack_leg_grasp_pose', 'table_lack_leg_helper_pose'], 'table_leg'],
-                '3_table_leg3': [[2, 4], ['table_lack_leg_grasp_pose', 'table_lack_leg_helper_pose'], 'table_leg'],
-                '4_table_leg4': [[2, 4], ['table_lack_leg_grasp_pose', 'table_lack_leg_helper_pose'], 'table_leg'],
+                '1_table_leg1': [[8, 4], ['table_lack_leg_grasp_pose', 'table_lack_leg_helper_pose'], 'table_leg'],
+                '2_table_leg2': [[8, 4], ['table_lack_leg_grasp_pose', 'table_lack_leg_helper_pose'], 'table_leg'],
+                '3_table_leg3': [[8, 4], ['table_lack_leg_grasp_pose', 'table_lack_leg_helper_pose'], 'table_leg'],
+                '4_table_leg4': [[8, 4], ['table_lack_leg_grasp_pose', 'table_lack_leg_helper_pose'], 'table_leg'],
                 '5_table_top': [[6], 'table_lack_top_grasp_pose']
             }
         }

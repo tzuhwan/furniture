@@ -405,7 +405,7 @@ class FurnitureBaxterControllerPlannerEnv(FurnitureBaxterEnv):
 		self.cb.initialize_potential_dicts()
 
 		# compute initial multi-objective potential and check for controller progress
-		init_potential, _ = self.cb.compute_multiobjective_controller_potentials(controllers)
+		init_potential, _ = self.cb.compute_multiobjective_controller_potential(controllers)
 		progress = True
 
 		# run controller
@@ -413,7 +413,7 @@ class FurnitureBaxterControllerPlannerEnv(FurnitureBaxterEnv):
 			# set flag so unity will update
 			# self._unity_updated = False # TODO do not render walkouts for better sim behavior
 			# compute multi-objective potential and check for controller progress
-			_, progress = self.cb.compute_multiobjective_controller_potentials(controllers)
+			_, progress = self.cb.compute_multiobjective_controller_potential(controllers)
 			# compute controller update
 			velocities, objective_met = self.cb.compute_multiobjective_controller_update(controllers)
 			num_iters += 1
@@ -433,7 +433,7 @@ class FurnitureBaxterControllerPlannerEnv(FurnitureBaxterEnv):
 				print("bad progress made, sample probability: %f" % prob)
 		else: # num_iters > self.num_walkout_iters
 			# compute final distance from goal
-			final_potential, _ = self.cb.compute_multiobjective_controller_potentials(controllers)
+			final_potential, _ = self.cb.compute_multiobjective_controller_potential(controllers)
 			# if final potential is greater than initial, composition would not have reached goal
 			if final_potential > init_potential:
 				prob = 0

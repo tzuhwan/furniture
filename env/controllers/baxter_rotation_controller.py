@@ -60,7 +60,9 @@ class BaxterRotationController(BaxterAssemblyController):
 			return
 
 		# check if rpy or xyzw
-		if len(goal_rotation) == 3:
+		if goal_rotation is None:
+			goal_quat = None
+		elif len(goal_rotation) == 3:
 			goal_quat = T.euler_to_quat(goal_rotation)
 		elif len(goal_rotation) == 4:
 			goal_quat = goal_rotation
@@ -71,7 +73,10 @@ class BaxterRotationController(BaxterAssemblyController):
 
 		# we now know arm is either "left" or "right"
 		self.control_arm = control_arm
-		self.goal_quat = np.array(goal_quat)
+		if goal_quat is None:
+			self.goal_quat = None
+		else:
+			self.goal_quat = np.array(goal_quat)
 		if self.verbose:
 			print("BaxterRotationController: New goal set for %s arm" % self.control_arm)
 		return
@@ -91,6 +96,9 @@ class BaxterRotationController(BaxterAssemblyController):
 	Based on attractive potential field.
 	"""
 	def potential(self):
+		# check if goal exists
+		if self.goal_quat is None:
+			return 0
 		# compute difference between current and goal pose
 		diff_pos = self.curr_pos - self.curr_pos # no difference
 		diff_quat = T.quat_multiply(T.quat_inverse(self.curr_quat), self.goal_quat)
@@ -145,6 +153,9 @@ class BaxterRotationController(BaxterAssemblyController):
 	@return the commanded joint positions induced by the controller
 	"""
 	def get_dq(self):
+		# check if goal exists
+		if self.goal_quat is None:
+			return np.zeros(14)
 		# compute dx
 		dx = self.get_dx()
 

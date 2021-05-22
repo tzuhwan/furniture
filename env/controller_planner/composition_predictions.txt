@@ -1,4 +1,4 @@
-action: insert-into
+action: insert
 	composition: BaxterRotationController <| Baxter3DPositionController
 		probability: 0.711119
 		iterations: 214.092000
@@ -8,7 +8,7 @@ action: insert-into
 		iterations: 219.792000
 		samples: 500
 
-action: screw-into
+action: screw
 	composition: BaxterScrewController <| BaxterRotationController <| Baxter3DPositionController
 		probability: 0.922610
 		iterations: 231.556001

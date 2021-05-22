@@ -36,6 +36,10 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
         # initialize FurnitureBaxterEnv
         super().__init__(config)
 
+        # set vebose and debug flag
+        self.verbose = config.verbose
+        self.debug = config.debug
+
         # initialize control basis
         self.cb = ControlBasis()
 
@@ -104,7 +108,8 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 controllers_goals = action
                 self.cb.initialize_controllers_and_goals(controllers_goals,
                     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
-                    robot_jpos_getter=self._robot_jpos_getter
+                    robot_jpos_getter=self._robot_jpos_getter,
+                    verbose=self.verbose
                 )
                 self.composition = [controller_name for controller_name, goal_info in controllers_goals]
                 run = "multiobjective-controller"
@@ -114,7 +119,8 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 controllers_goals = action[2]
                 self.cb.initialize_controllers_and_goals(controllers_goals,
                     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
-                    robot_jpos_getter=self._robot_jpos_getter
+                    robot_jpos_getter=self._robot_jpos_getter,
+                    verbose=self.verbose
                 )
                 compositions = self.walkout_controller_compositions(control_arm, action_name)
                 print("planned compositions: ", compositions)
@@ -128,7 +134,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
                     robot_jpos_getter=self._robot_jpos_getter,
                     objects_in_scene=self._object_names,
-                    verbose=config.verbose
+                    verbose=self.verbose
                 )
                 self._controller.set_goal(control_arm, object_name, object_goal_pos, object_goal_quat)
                 run = "object-controller"
@@ -138,7 +144,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 self.cb.initialize_controllers_and_goals(controller_goals,
                     bullet_data_path=os.path.join(env.models.assets_root, "bullet_data"),
                     robot_jpos_getter=self._robot_jpos_getter,
-                    verbose=config.verbose
+                    verbose=self.verbose
                 )
                 run = action[0]
             # close gripper
@@ -245,14 +251,14 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
                 self.vr.add(self.render('rgb_array'))
 
             if isinstance(action[0], tuple):
-                print("FurnitureBaxterAssemblyEnv: finished action %s" % self.multiobjective_controller_string(self.composition))
+                print("FurnitureBaxterAssemblyEnv: finished action %s" % self.cb.multiobjective_controller_string(self.composition))
             else:
                 print("FurnitureBaxterAssemblyEnv: finished action %s" % action[0])
 
         print("FurnitureBaxterAssemblyEnv: Goal met!")
         time.sleep(2)
         if config.record_video:
-            self.vr.save_video('FurnitureBaxterAssemblyEnv_test.mp4') # FurnitureBaxterAssemblyEnv_test.mp4
+            self.vr.save_video(config.video_name) # FurnitureBaxterAssemblyEnv_test.mp4
         time.sleep(2)
         print("FurnitureBaxterAssemblyEnv returning")
 
@@ -400,7 +406,7 @@ class FurnitureBaxterAssemblyEnv(FurnitureBaxterEnv):
     """
     Selects controller compositions for given action name.
     """
-    def walkout_controller_compositions(self, control_arm="left", action_name="screw-into"):
+    def walkout_controller_compositions(self, control_arm="left", action_name="screw"):
         # get initial joint state
         self.walkout_start_state = self.get_current_qpos()
 

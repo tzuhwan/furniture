@@ -35,15 +35,15 @@
 		(affords-picking column-end)
 		(affords-picking base-leg)
 
-		(affords-connecting seat-connect)
-		(affords-connecting-to seat column-connector column)
+		(affords-inserting seat-connect)
+		(affords-inserting-into seat column-connector column)
         
-        (affords-screwing column-screw)
-		(affords-screwing-into column base-hole base)
+        (affords-inserting column-screw)
+		(affords-inserting-into column base-hole base)
 	)
 
-	(:goal (and (connected-to seat column)
-				(screwed-into column base)
+	(:goal (and (inserted-into-base column base)
+				(inserted-into-top seat column)
 		   	)
 	)
 )

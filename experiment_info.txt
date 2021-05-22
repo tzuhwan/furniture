@@ -1,0 +1,112 @@
+swivel_chair_0700 assembly trial
+	seed: 123
+	video name: swivelchair_trial1.mp4
+	task planning time: 0.018142
+	controller planning time: 0.151735
+	execution time: 225.961769
+
+swivel_chair_0700 assembly trial
+	seed: 23
+	video name: swivelchair_trial2.mp4
+	task planning time: 0.024205
+	controller planning time: 0.178110
+	execution time: 296.265966
+
+swivel_chair_0700 assembly trial
+	seed: 149
+	video name: swivelchair_trial3.mp4
+	task planning time: 0.026651
+	controller planning time: 0.303862
+	execution time: 279.344106
+
+swivel_chair_0700 assembly trial
+	seed: 144
+	video name: swivelchair_trial4.mp4
+	task planning time: 0.020861
+	controller planning time: 0.158803
+	execution time: 208.137535
+
+swivel_chair_0700 assembly trial
+	seed: 18
+	video name: swivelchair_trial5.mp4
+	task planning time: 0.020865
+	controller planning time: 0.281485
+	execution time: 269.708743
+
+swivel_chair_0700 assembly trial
+	seed: 78
+	video name: swivelchair_trial6.mp4
+	task planning time: 0.027250
+	controller planning time: 0.182235
+	execution time: 289.386026
+
+swivel_chair_0700 assembly trial
+	seed: 148
+	video name: swivelchair_trial7.mp4
+	task planning time: 0.027463
+	controller planning time: 0.201129
+	execution time: 356.504534
+
+swivel_chair_0700 assembly trial
+	seed: 46
+	video name: swivelchair_trial8.mp4
+	task planning time: 0.021239
+	controller planning time: 0.226376
+	execution time: 223.109414
+
+swivel_chair_0700 assembly trial
+	seed: 102
+	video name: swivelchair_trial09.mp4
+	task planning time: 0.046916
+	controller planning time: 0.169882
+	execution time: 247.143308
+
+swivel_chair_0700 assembly trial
+	seed: 112
+	video name: swivelchair_trial10.mp4
+	task planning time: 0.042466
+	controller planning time: 0.199906
+	execution time: 266.852450
+
+table_lack_0825 assembly trial
+	seed: 123
+	video name: tablelack_trial1.mp4
+	task planning time: 0.036114
+	controller planning time: 0.069513
+	execution time: 480.883712
+
+table_lack_0825 assembly trial
+	seed: 155
+	video name: tablelack_trial2.mp4
+	task planning time: 0.065713
+	controller planning time: 0.077316
+	execution time: 467.979359
+
+table_lack_0825 assembly trial
+	seed: 160
+	video name: tablelack_trial3.mp4
+	task planning time: 0.043039
+	controller planning time: 0.075584
+	execution time: 537.932811
+
+table_lack_0825 assembly trial
+	seed: 177
+	video name: tablelack_trial4.mp4
+	task planning time: 0.030746
+	controller planning time: 0.088083
+	execution time: 508.348833
+
+table_lack_0825 assembly trial
+	seed: 81
+	video name: tablelack_trial5.mp4
+	task planning time: 0.074859
+	controller planning time: 0.049113
+	execution time: 450.780593
+
+table_lack_0825 assembly trial
+	seed: 151
+	video name: tablelack_trial6.mp4
+	task planning time: 0.035264
+	controller planning time: 0.083848
+	execution time: 506.507479
+

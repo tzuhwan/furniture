@@ -17,10 +17,23 @@ Inputs types of agent, furniture model, and background and simulates the environ
 def main(args):
 	print("Baxter Furniture Assembly Environment")
 
+	env_types = ["FurnitureBaxterAssemblyEnv", "FurnitureBaxterAssemblyAutoEnv", "FurnitureBaxterControllerPlannerEnv"]
+
+	# select environment
+	print()
+	print("Supported environments:\n")
+	for i, env_type in enumerate(env_types):
+		print('{}: {}'.format(i, env_type))
+	print()
+	try:
+		s = input("Choose an environment (enter a number from 0 to {}): ".format(len(env_types) - 1))
+		env_name = env_types[int(s)]
+	except:
+		print("Input is not valid. Use 0 by default.")
+		env_name = env_types[0]
+
 	# set parameters for the environment (furniture_id, background)
-	if args.plan_compositions:
-		env_name = 'FurnitureBaxterControllerPlannerEnv'
-		
+	if env_name == 'FurnitureBaxterControllerPlannerEnv':
 		# use default furniture and background
 		furniture_name = 'block'
 		furniture_id = furniture_name2id['block']
@@ -72,8 +85,6 @@ def main(args):
 		print()
 		print("Chosen parameters (control arm: %s, action: %s, number of samples: %d)" % (control_arm, action, num_samps))
 	else:
-		env_name = 'FurnitureBaxterAssemblyEnv'
-
 		# choose a furniture model
 		print()
 		print("Supported furniture:\n")
@@ -119,7 +130,7 @@ def main(args):
 	env = make_env(env_name, args)
 
 	# run environment
-	if args.plan_compositions:
+	if env_name == "FurnitureBaxterControllerPlannerEnv":
 		# compositions = env.plan_controller_compositions(args)
 		compositions = env.walkout_controller_compositions(args)
 		print("possible compositions: ", compositions)
@@ -141,8 +152,8 @@ def argsparser():
 	parser.add_argument('--seed', type=int, default=123)
 	parser.add_argument('--debug', type=str2bool, default=False)
 	parser.add_argument('--record_video', type=str2bool, default=False)
+	parser.add_argument('--video_name', type=str, default='FurnitureBaxterAssemblyEnv_test.mp4')
 	parser.add_argument('--verbose', type=str2bool, default=True)
-	parser.add_argument('--plan_compositions', type=str2bool, default=False)
 	parser.add_argument('--visualize_samples', type=str2bool, default=False)
 
 	import config.furniture as furniture_config

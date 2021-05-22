@@ -7,7 +7,8 @@ from env.furniture_baxter import FurnitureBaxterEnv
 from env.furniture_sawyer import FurnitureSawyerEnv
 from env.furniture_cursor import FurnitureCursorEnv
 from env.furniture_baxter_block import FurnitureBaxterBlockEnv
-from env.furniture_baxter_assembly_auto import FurnitureBaxterAssemblyEnv
+from env.furniture_baxter_assembly import FurnitureBaxterAssemblyEnv
+from env.furniture_baxter_assembly_auto import FurnitureBaxterAssemblyAutoEnv
 from env.controller_planner.furniture_baxter_controller_planner import FurnitureBaxterControllerPlannerEnv
 
 # OpenAI gym interface

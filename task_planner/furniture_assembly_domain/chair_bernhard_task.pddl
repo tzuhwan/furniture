@@ -6,7 +6,7 @@
 		left-leg-base right-leg-base seat-base - handle-part
 		left-leg-connect right-leg-connect - action-part
 		seat-connector-left seat-connector-right - tool-part
-		robot-gripper - gripper
+		robot-gripper1 robot-gripper2 - gripper
 	)
 
 	(:init
@@ -18,7 +18,8 @@
 		(clear left-leg)
 		(clear right-leg)
 
-		(empty robot-gripper)
+		(empty robot-gripper1)
+		(empty robot-gripper2)
 
 		(part-of seat-base seat)
 		(part-of left-leg-base left-leg)
@@ -33,10 +34,10 @@
 		(affords-picking left-leg-base)
 		(affords-picking right-leg-base)
 
-		(affords-connecting left-leg-connect)
-        (affords-connecting right-leg-connect)
-		(affords-connecting-to left-leg seat-connector-left seat)
-        (affords-connecting-to right-leg seat-connector-right seat)
+		(affords-inserting left-leg-connect)
+        (affords-inserting right-leg-connect)
+		(affords-inserting-into left-leg seat-connector-left seat)
+        (affords-inserting-into right-leg seat-connector-right seat)
 	)
 
 	(:goal (and (connected-to left-leg seat)

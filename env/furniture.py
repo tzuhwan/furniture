@@ -573,7 +573,7 @@ class FurnitureEnv(metaclass=EnvMeta):
             if select:
                 if self._cursor_selected[cursor_i] is None:
                     self._cursor_selected[cursor_i] = self._select_object(cursor_i)
-
+        # print("***** MUJOCO OBJECTS: ", self.mujoco_objects)
         connect = a[14]
         if connect > 0 and self._cursor_selected[0] and self._cursor_selected[1]:
             if True:#self._debug: # TODO
@@ -584,7 +584,7 @@ class FurnitureEnv(metaclass=EnvMeta):
         elif self._connect_step > 0:
             self._connect_step = 0
 
-    def _connect(self, site1_id, site2_id):
+    def _connect(self, site1_id, site2_id, switch_connections=False):
         """
         Connects two sites together with weld constraint.
         Makes the two objects are within boundaries
@@ -617,7 +617,10 @@ class FurnitureEnv(metaclass=EnvMeta):
                         self.sim.model.geom_conaffinity[geom_id] = (1 << (group1 + 1))
 
         # align site
-        self._align_connectors(site1, site2, gravity=self._gravity_compensation)
+        if switch_connections:
+            self._align_connectors(site2, site1, gravity=self._gravity_compensation)
+        else:
+            self._align_connectors(site1, site2, gravity=self._gravity_compensation)
 
         # move furniture to collision-safe position
         if self._agent_type == 'Cursor':
@@ -655,7 +658,7 @@ class FurnitureEnv(metaclass=EnvMeta):
         # set next subtask
         self._get_next_subtask()
 
-    def _try_connect(self, part1=None, part2=None):
+    def _try_connect(self, part1=None, part2=None, switch_connections=False):
         """
         Attempts to connect 2 parts. If they are correctly aligned,
         then we interpolate the 2 parts towards the target position and orientation
@@ -738,7 +741,7 @@ class FurnitureEnv(metaclass=EnvMeta):
                             self._connect_step += 1
                             return False
                         else:
-                            self._connect(site1_id, site2_id)
+                            self._connect(site1_id, site2_id, switch_connections=switch_connections)
                             self._connect_step = 0
                             self.next_pos = self.next_rot = None
                             return True

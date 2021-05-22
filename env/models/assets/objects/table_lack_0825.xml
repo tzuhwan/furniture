@@ -16,7 +16,8 @@
     </equality>
     <worldbody>
         <body name="1_table_leg1" pos="-0.4 -0.133 0.0833">
-            <geom density="100" material="pencil-wood" mesh="table_leg1" name="1_table_leg1_geom" pos="0 0 0" rgba="0.82 0.71 0.55 1" solref="0.001 1" type="mesh" />
+            <geom conaffinity="0" contype="0" density="0" material="pencil-wood" mesh="table_leg1" name="1_table_leg1_geom" pos="0 0 0" rgba="0.82 0.71 0.55 1" solref="0.001 1" type="mesh" />
+            <geom density="100" name="noviz_collision_1_table_leg1" pos="0.00 0.00 0.001" rgba="1 0 0 1" size="0.012 0.012 0.13" solref="0.001 1" type="box"/>
             <site group="0" name="leg1-table,0,90,180,270,conn_site" pos="0.0 0.0 0.1483" rgba="1 0 0 0.3" size="0.0116" />
             <site name="1_table_leg1_bottom_site" pos="0.0 0.0 -0.133" rgba="0 0 1 0" size="0.0116" />
             <site name="1_table_leg1_top_site" pos="0.0 0.0 0.1333" rgba="0 0 1 0" size="0.0116" />
@@ -31,7 +32,8 @@
             <site name="1_table_leg1_horizontal_radius_site" pos="0.0 0.0 0.0" rgba="0 0 1 0" size="0.07" />
         </body>
         <body name="2_table_leg2" pos="-0.4 0.14 0.0833" quat="1 0 0 0">
-            <geom density="100" material="pencil-wood" mesh="table_leg2" name="2_table_leg2_geom" pos="0 0 0" rgba="0.82 0.71 0.55 1" solref="0.001 1" type="mesh" />
+            <geom conaffinity="0" contype="0" density="0" material="pencil-wood" mesh="table_leg2" name="2_table_leg2_geom" pos="0 0 0" rgba="0.82 0.71 0.55 1" solref="0.001 1" type="mesh" />
+            <geom density="100" name="noviz_collision_2_table_leg2" pos="0.00 0.00 0.001" rgba="1 0 0 1" size="0.012 0.012 0.13" solref="0.001 1" type="box"/>
             <site group="0" name="leg2-table,0,90,180,270,conn_site" pos="0.0 0.0 0.1483" rgba="0 1 1 0.3" size="0.0116" />
             <site name="2_table_leg2_bottom_site" pos="0.0 0.0 -0.133" rgba="0 0 1 0" size="0.0116" />
             <site name="2_table_leg2_top_site" pos="0.0 0.0 0.1333" rgba="0 0 1 0" size="0.0116" />
@@ -46,7 +48,8 @@
             <site name="2_table_leg2_horizontal_radius_site" pos="0.0 0.0 0.0" rgba="0 0 1 0" size="0.07" />
         </body>
         <body name="3_table_leg3" pos="0.4083 -0.133 0.0833" quat="1 0 0 0">
-            <geom density="100" material="pencil-wood" mesh="table_leg3" name="3_table_leg3_geom" pos="0 0 0" rgba="0.82 0.71 0.55 1" solref="0.001 1" type="mesh" />
+            <geom conaffinity="0" contype="0" density="0" material="pencil-wood" mesh="table_leg3" name="3_table_leg3_geom" pos="0 0 0" rgba="0.82 0.71 0.55 1" solref="0.001 1" type="mesh" />
+            <geom density="100" name="noviz_collision_3_table_leg3" pos="0.00 0.00 0.001" rgba="1 0 0 1" size="0.012 0.012 0.13" solref="0.001 1" type="box"/>
             <site group="0" name="leg3-table,0,90,180,270,conn_site" pos="0.0 0.0 0.1483" rgba="1 0 1 0.3" size="0.0116" />
             <site name="3_table_leg3_bottom_site" pos="0.0 0.0 -0.133" rgba="0 0 1 0" size="0.0116" />
             <site name="3_table_leg3_top_site" pos="0.0 0.0 0.1333" rgba="0 0 1 0" size="0.0116" />
@@ -61,7 +64,8 @@
             <site name="3_table_leg3_horizontal_radius_site" pos="0.0 0.0 0.0" rgba="0 0 1 0" size="0.07" />
         </body>
         <body name="4_table_leg4" pos="0.4083 0.14 0.0833" quat="1 0 0 0">
-            <geom density="100" material="pencil-wood" mesh="table_leg4" name="4_table_leg4_geom" pos="0 0 0" rgba="0.82 0.71 0.55 1" solref="0.001 1" type="mesh" />
+            <geom conaffinity="0" contype="0" density="0" material="pencil-wood" mesh="table_leg4" name="4_table_leg4_geom" pos="0 0 0" rgba="0.82 0.71 0.55 1" solref="0.001 1" type="mesh" />
+            <geom density="100" name="noviz_collision_4_table_leg4" pos="0.00 0.00 0.001" rgba="1 0 0 1" size="0.012 0.012 0.13" solref="0.001 1" type="box"/>
             <site group="0" name="leg4-table,0,90,180,270,conn_site" pos="0.0 0.0 0.1483" rgba="1 1 0 0.3" size="0.0116" />
             <site name="4_table_leg4_bottom_site" pos="0.0 0.0 -0.133" rgba="0 0 1 0" size="0.0116" />
             <site name="4_table_leg4_top_site" pos="0.0 0.0 0.1333" rgba="0 0 1 0" size="0.0116" />

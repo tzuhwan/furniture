@@ -222,14 +222,25 @@ def plan_sequence(obj, domain=DEFAULT_DOMAIN, search=SEARCHES['astar'], heuristi
     )
     name_map = NAME_MAPPING[obj]
     action_sequence = []
+    # print("PYPERPLAN SOLUTION: ", solution)
     for s in solution:
         action = s.name
         words = action.split(' ')
         if len(words) == 4:  # pick-up-from-floor robot-gripper part-handle part
-            action_sequence.append(['grasp', 'left', name_map[words[-1][:-1]]])
+            gripper = 'right' if words[1] == 'robot-gripper2' else 'left'
+            action_sequence.append(['grasp', gripper, name_map[words[-1][:-1]]])
         elif len(words) == 6:  # screw-into/connect-to robot-gripper part1-site part1 part2-site part2
-            move = 'screw' if words[0][1:] == 'screw-into' else 'connect'
+            move = 'screw' if words[0][1:] == 'screw-into' else 'insert'
             action_sequence.append([move, 'left', name_map[words[2]], name_map[words[4]]])
+        elif len(words) == 7: # insert-into-base robot-gripper part1-site part1 part2-site part2 part3
+            move = 'insert'
+            action_sequence.append([move, 'left', name_map[words[2]], name_map[words[4]]])
+        elif len(words) == 10: # connect-two-to-[something]
+            move = 'connect2'
+            if words[0][1:] == 'connect-two-to-stool': # connect-two-to-stool gripper1 part1-site1 part1 seat-site seat gripper2 part2-site part2 part1-site2
+                action_sequence.append([move, 'left', name_map[words[2]], name_map[words[4]], 'right', name_map[words[7]], name_map[words[9][:-1]]])
+            elif words[0][1:] == 'connect-two-to-seat': # connect-two-to-seat gripper1 part1-site part1 gripper2 part2-site part2 seat-site1 seat-site2 seat
+                action_sequence.append([move, 'left', name_map[words[2]], name_map[words[7]], 'right', name_map[words[5]], name_map[words[8]]])
     return action_sequence
     
 
