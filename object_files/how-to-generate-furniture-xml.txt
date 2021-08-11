@@ -1,0 +1,25 @@
+To generate a furniture xml file completed with connection sites and welding equalities, follow the following steps:
+
+1. Create a semi-comlete xml furniture file. See unconverted/desk_lamp/desk_lamp.xml for example. 
+2. Check out the dev branch of the original Ikea assembly repo at the 02/13/2020 commit
+    - https://github.com/clvrai/furniture/tree/16ae0cba23a2df9635b98b887a938112c2945575
+    - In furniture/furniture-unity/assets/scripts/xmlTool.cs, 
+        - comment out line 1048(site_size = doc.GetElementsByTagName("site")[0].Attributes["size"].Value;)
+        - uncomment line 1049(site_size = "20";)
+3. Download Unity 2018.4.14 from Unity Archive Site: unityhub://2018.4.14f1/05119b33d0b7
+    - For MacOS, simply open Unity Hub
+    - For Linux, Go to the location of you UnityHub.AppImage on terminal and run "./UnityHub.AppImage unityhub://2019.3.1f1/89d6087839c2" 
+    - Launch Unity Hub, select 'Add' and add furniture/furniture-unity under Projects
+4. Launch the Windows/xmlTool on toolbar 
+5. Select the semi-complete furniture xml file under browse
+6. Select 'Import Model', which imports the component stl files under a MujoCo GameObject
+    - create empty GameObjects under MujoCo and name them as "furniture_part_bottom_site" or "furniture_part_top_site depending on the connection
+    - Eg. to connect the top of a lamp arm to the bottom of the lamp head, generate "arm_part_top_site" and "head_part_bottom_site"
+7. Select the component with bottom_site as body1(top object), vice versa
+8. Not sure what groupName1 and 2 are for, I simply pass in "furniture_part_direction_site"
+9. Hit SaveModel, and the site tags should be generated and saved in complete/furniture_name/furniture.xml
+10. Navigate to furniture/env/xml_adjusting/xml_edit.py, and make the following changes:
+    - body.getiterator() -> body.iter() (line 54 & 96)
+11. Run xml_edit.py and pass in the argument: --path <path-to-furniture.xml-with-site-tags>
+
+

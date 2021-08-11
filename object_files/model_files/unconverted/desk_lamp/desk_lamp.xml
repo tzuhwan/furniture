@@ -1,0 +1,21 @@
+<mujoco model="desk_lamp">
+    <asset>
+        <mesh file="arm.stl" name="part_arm" scale="1 1 1" />
+        <mesh file="base.stl" name="part_base" scale="1 1 1" />
+        <mesh file="head.stl" name="part_head" scale="1 1 1" />
+    </asset>
+    <equality>
+        </equality>
+    <worldbody>
+        <body name="arm_part" pos="0 0 0" quat="1 0 0 0">
+        <geom conaffinity="0" contype="0" density="0" mesh="part_arm" name="arm_part_mesh" pos="0 0 0" rgba="0.82 0.71 0.55 1" type="mesh" />
+        </body>
+        <body name="base_part" pos="0 0 0" quat="1 0 0 0">
+        <geom conaffinity="0" contype="0" density="0" mesh="part_base" name="base_part_mesh" pos="0 0 0" rgba="0.82 0.71 0.55 1" type="mesh" />
+        </body>
+
+        <body name="head_part" pos="0 0 0" quat="1 0 0 0">
+        <geom conaffinity="0" contype="0" density="0" mesh="part_head" name="head_part_mesh" pos="0 0 0" rgba="0.82 0.71 0.55 1" type="mesh" />
+        </body>
+    </worldbody>
+</mujoco>
