@@ -2,7 +2,7 @@ To generate a furniture xml file completed with connection sites and welding equ
 
 1. Create a semi-comlete xml furniture file. See unconverted/desk_lamp/desk_lamp.xml for example. 
 2. Check out the dev branch of the original Ikea assembly repo at the 02/13/2020 commit
-    -'git checkout 16ae0cba23a2df9635b98b887a938112c294557516ae0cba23a2df9635b98b887a938112c2945575'
+    -'git checkout 16ae0cba23a2df9635b98b887a938112c2945575'
     - In furniture/furniture-unity/assets/scripts/xmlTool.cs, 
         - comment out line 1048(site_size = doc.GetElementsByTagName("site")[0].Attributes["size"].Value;)
         - uncomment line 1049(site_size = "20";)
