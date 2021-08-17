@@ -1,0 +1,29 @@
+<mujoco model="desk_lamp">
+  <asset>
+  <mesh file="desk_lamp/base.stl" name="part_base" scale="0.011250000000000003 0.011250000000000003 0.011250000000000003" />
+    <mesh file="desk_lamp/arm.stl" name="part_arm" scale="0.011250000000000003 0.011250000000000003 0.011250000000000003" />
+    <mesh file="desk_lamp/head.stl" name="part_head" scale="0.011250000000000003 0.011250000000000003 0.011250000000000003" />
+  </asset>
+  <equality>
+  <weld active="false" body1="arm_part" body2="base_part" solimp="1 1 0.5" solref="0.01 0.3" /><weld active="false" body1="arm_part" body2="head_part" solimp="1 1 0.5" solref="0.01 0.3" />
+  <weld active="false" body1="arm_part" body2="base_part" solimp="1 1 0.5" solref="0.01 0.3" /><weld active="false" body1="arm_part" body2="head_part" solimp="1 1 0.5" solref="0.01 0.3" />
+  </equality>
+  <worldbody>
+    <body name="arm_part" pos="0.0 0.0 0.0" quat="1 0 0 0">
+      <geom conaffinity="0" contype="0" density="0" mesh="part_arm" name="arm_part_mesh" pos="0.0 0.0 0.0" rgba="0.82 0.71 0.55 1" type="mesh" />
+      <site name="arm_part_horizontal_radius_site" pos="0.0 0.0 0.0" quat="1 0 0 0" rgba="0 0 1 0.3" size="0.22500000000000003" />
+      <site name="arm_part_bottom_site-base_part_top_site,conn_site1" pos="0.0005298750000000001 8.55e-05 0.0009675" quat="1 0 0 0" rgba="0.9019 0.0980 0.2941 0.3" size="0.22500000000000003" />
+      <site name="arm_part_top_site-head_part_bottom_site,conn_site1" pos="0.0013882500000000002 0.0 0.006432750000000001" quat="1 0 0 0" rgba="0.2352 0.7058 0.2941 0.3" size="0.22500000000000003" />
+    </body>
+    <body name="base_part" pos="0.0 0.0 0.0" quat="1 0 0 0">
+      <geom conaffinity="0" contype="0" density="0" mesh="part_base" name="base_part_mesh" pos="0.0 0.0 0.0" rgba="0.82 0.71 0.55 1" type="mesh" />
+      <site name="base_part_horizontal_radius_site" pos="0.0 0.0 0.0" quat="1 0 0 0" rgba="0 0 1 0.3" size="0.22500000000000003" />
+      <site name="base_part_top_site-arm_part_bottom_site,conn_site1" pos="0.0005298750000000001 8.55e-05 0.0009675" quat="1 0 0 0" rgba="0.9019 0.0980 0.2941 0.3" size="0.22500000000000003" />
+    </body>
+    <body name="head_part" pos="0.0 0.0 0.0" quat="1 0 0 0">
+      <geom conaffinity="0" contype="0" density="0" mesh="part_head" name="head_part_mesh" pos="0.0 0.0 0.0" rgba="0.82 0.71 0.55 1" type="mesh" />
+      <site name="head_part_horizontal_radius_site" pos="0.0 0.0 0.0" quat="1 0 0 0" rgba="0 0 1 0.3" size="0.22500000000000003" />
+      <site name="head_part_bottom_site-arm_part_top_site,conn_site1" pos="0.0013882500000000002 0.0 0.006432750000000001" quat="1 0 0 0" rgba="0.2352 0.7058 0.2941 0.3" size="0.22500000000000003" />
+    </body>
+  </worldbody>
+</mujoco>
